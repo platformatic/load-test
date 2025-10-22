@@ -90,7 +90,6 @@ async function loadTest (csvPath, timeoutMs = 3000) {
 
   const startTime = Date.now()
   const firstRequestTime = requests[0].time
-  const promises = []
 
   for (let i = 0; i < requests.length; i++) {
     const req = requests[i]
@@ -99,19 +98,14 @@ async function loadTest (csvPath, timeoutMs = 3000) {
     const now = Date.now()
     const delay = targetTime - now
 
-    const promise = (async () => {
-      if (delay > 0) {
-        await setTimeout(delay)
-      }
-      await executeRequest(req.url, timeoutMs)
-    })()
+    if (delay > 0) {
+      await setTimeout(delay)
+    }
 
-    promises.push(promise)
+    executeRequest(req.url, timeoutMs)
   }
 
-  await Promise.all(promises)
-
-  console.log('\nAll requests completed')
+  console.log('\nAll requests initiated')
 }
 
 module.exports = { loadTest, parseCSV, executeRequest }
