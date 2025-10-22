@@ -1,39 +1,60 @@
 'use strict'
 
-const { readFile } = require('fs/promises')
+const { createReadStream } = require('fs')
+const { pipeline } = require('stream/promises')
+const { Transform } = require('stream')
+const { createInterface } = require('readline')
 const { setTimeout } = require('timers/promises')
 const { request } = require('undici')
 
-async function parseCSV (filePath) {
-  const content = await readFile(filePath, 'utf-8')
-  const lines = content.trim().split('\n')
+function parseCSV (filePath) {
+  const fileStream = createReadStream(filePath, { encoding: 'utf-8' })
+  const rl = createInterface({
+    input: fileStream,
+    crlfDelay: Infinity
+  })
 
-  const requests = []
+  let lineNumber = 0
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim()
-    if (!line) continue
+  const parseTransform = new Transform({
+    objectMode: true,
+    async transform (line, encoding, callback) {
+      lineNumber++
+      const trimmedLine = line.trim()
 
-    const parts = line.split(',')
-    if (parts.length !== 2) {
-      throw new Error(`Invalid CSV format at line ${i + 1}: expected 2 columns (time,url), got ${parts.length}`)
+      if (!trimmedLine) {
+        callback()
+        return
+      }
+
+      const parts = trimmedLine.split(',')
+      if (parts.length !== 2) {
+        callback(new Error(`Invalid CSV format at line ${lineNumber}: expected 2 columns (time,url), got ${parts.length}`))
+        return
+      }
+
+      const time = parseFloat(parts[0].trim())
+      const url = parts[1].trim()
+
+      if (isNaN(time)) {
+        callback(new Error(`Invalid time value at line ${lineNumber}: ${parts[0]}`))
+        return
+      }
+
+      if (!url) {
+        callback(new Error(`Invalid URL at line ${lineNumber}: URL cannot be empty`))
+        return
+      }
+
+      callback(null, { time, url })
     }
+  })
 
-    const time = parseFloat(parts[0].trim())
-    const url = parts[1].trim()
+  pipeline(rl, parseTransform).catch((err) => {
+    parseTransform.destroy(err)
+  })
 
-    if (isNaN(time)) {
-      throw new Error(`Invalid time value at line ${i + 1}: ${parts[0]}`)
-    }
-
-    if (!url) {
-      throw new Error(`Invalid URL at line ${i + 1}: URL cannot be empty`)
-    }
-
-    requests.push({ time, url })
-  }
-
-  return requests
+  return parseTransform
 }
 
 async function executeRequest (url, timeoutMs = 3000) {
@@ -80,22 +101,16 @@ async function executeRequest (url, timeoutMs = 3000) {
 }
 
 async function loadTest (csvPath, timeoutMs = 3000) {
-  // This could be a stream instead of loading all the requests, will improve later if needed
-  const requests = await parseCSV(csvPath)
-
-  if (requests.length === 0) {
-    console.log('No requests found in CSV file')
-    return
-  }
-
-  console.log(`Loaded ${requests.length} requests from ${csvPath}`)
   console.log('Starting load test...\n')
 
   const startTime = Date.now()
-  const firstRequestTime = requests[0].time
+  let firstRequestTime = null
 
-  for (let i = 0; i < requests.length; i++) {
-    const req = requests[i]
+  for await (const req of parseCSV(csvPath)) {
+    if (firstRequestTime === null) {
+      firstRequestTime = req.time
+    }
+
     const relativeTime = req.time - firstRequestTime
     const targetTime = startTime + relativeTime
     const now = Date.now()
@@ -106,6 +121,11 @@ async function loadTest (csvPath, timeoutMs = 3000) {
     }
 
     executeRequest(req.url, timeoutMs)
+  }
+
+  if (firstRequestTime === null) {
+    console.log('No requests found in CSV file')
+    return
   }
 
   console.log('\nAll requests initiated')

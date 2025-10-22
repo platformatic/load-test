@@ -14,7 +14,10 @@ test('parseCSV - parses valid CSV file', async (t) => {
 
   await writeFile(csvPath, '1761128950441,https://example.com\n1761128950941,https://test.com\n1761128951441,https://api.com')
 
-  const requests = await parseCSV(csvPath)
+  const requests = []
+  for await (const req of parseCSV(csvPath)) {
+    requests.push(req)
+  }
 
   assert.strictEqual(requests.length, 3)
   assert.strictEqual(requests[0].time, 1761128950441)
@@ -34,7 +37,10 @@ test('parseCSV - handles empty lines', async (t) => {
 
   await writeFile(csvPath, '1761128950441,https://example.com\n\n1761128950941,https://test.com\n')
 
-  const requests = await parseCSV(csvPath)
+  const requests = []
+  for await (const req of parseCSV(csvPath)) {
+    requests.push(req)
+  }
 
   assert.strictEqual(requests.length, 2)
 
@@ -49,7 +55,11 @@ test('parseCSV - throws on invalid format', async (t) => {
   await writeFile(csvPath, '1761128950441,https://example.com,extra')
 
   await assert.rejects(
-    async () => await parseCSV(csvPath),
+    async () => {
+      for await (const req of parseCSV(csvPath)) {
+        // Should throw before yielding
+      }
+    },
     /Invalid CSV format at line 1/
   )
 
@@ -64,7 +74,11 @@ test('parseCSV - throws on invalid time', async (t) => {
   await writeFile(csvPath, 'invalid,https://example.com')
 
   await assert.rejects(
-    async () => await parseCSV(csvPath),
+    async () => {
+      for await (const req of parseCSV(csvPath)) {
+        // Should throw before yielding
+      }
+    },
     /Invalid time value at line 1/
   )
 
@@ -79,7 +93,11 @@ test('parseCSV - throws on empty URL', async (t) => {
   await writeFile(csvPath, '1761128950441,')
 
   await assert.rejects(
-    async () => await parseCSV(csvPath),
+    async () => {
+      for await (const req of parseCSV(csvPath)) {
+        // Should throw before yielding
+      }
+    },
     /Invalid URL at line 1/
   )
 
