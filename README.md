@@ -80,12 +80,12 @@ Starting load test...
 
 ✓ https://example.com/api/stream - 200
 ✓ https://example.com/api/data - 200
+
+All requests initiated
 ✗ ERROR: https://example.com/api/users
   Code: HTTP_404
 ✗ ERROR: https://example.com/api/timeout
   Code: ECONNREFUSED
-
-All requests completed
 ```
 
 ## Error Handling

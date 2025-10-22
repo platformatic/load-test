@@ -38,6 +38,7 @@ async function parseCSV (filePath) {
 
 async function executeRequest (url, timeoutMs = 3000) {
   try {
+    // We support only GET
     const { statusCode, body } = await request(url, {
       method: 'GET'
     })
@@ -46,6 +47,7 @@ async function executeRequest (url, timeoutMs = 3000) {
       throw new Error('Timeout reading first chunk')
     })
 
+    //...and read only the first chunk to consider the request successful
     const readChunk = (async () => {
       for await (const _ of body) {
         break
