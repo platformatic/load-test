@@ -80,6 +80,7 @@ async function executeRequest (url, timeoutMs = 3000) {
 }
 
 async function loadTest (csvPath, timeoutMs = 3000) {
+  // This could be a stream instead of loading all the requests, will improve later if needed
   const requests = await parseCSV(csvPath)
 
   if (requests.length === 0) {
