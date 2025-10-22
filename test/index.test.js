@@ -1,11 +1,12 @@
 'use strict'
 
-const { test } = require('node:test')
+const { test, after } = require('node:test')
 const assert = require('node:assert')
 const { writeFile, mkdir, rm } = require('fs/promises')
 const { join } = require('path')
 const { parseCSV, executeRequest, loadTest } = require('../index.js')
-const { createServer } = require('http')
+const fastify = require('fastify')
+
 
 test('parseCSV - parses valid CSV file', async (t) => {
   const tmpDir = join(__dirname, 'tmp')
@@ -105,42 +106,41 @@ test('parseCSV - throws on empty URL', async (t) => {
 })
 
 test('executeRequest - successful GET request', async (t) => {
-  const server = createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' })
-    res.end('test response')
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return 'test response'
   })
 
-  await new Promise((resolve) => server.listen(0, resolve))
-  const port = server.address().port
-  const url = `http://localhost:${port}`
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
 
   const result = await executeRequest(url)
 
   assert.strictEqual(result.success, true)
   assert.strictEqual(result.url, url)
   assert.strictEqual(result.statusCode, 200)
-
-  server.close()
 })
 
 test('executeRequest - handles streaming response', async (t) => {
-  const server = createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' })
-    res.write('chunk1')
-    res.write('chunk2')
-    res.end('chunk3')
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    reply.header('Content-Type', 'text/plain')
+    return 'chunk1chunk2chunk3'
   })
 
-  await new Promise((resolve) => server.listen(0, resolve))
-  const port = server.address().port
-  const url = `http://localhost:${port}`
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
 
   const result = await executeRequest(url)
 
   assert.strictEqual(result.success, true)
   assert.strictEqual(result.statusCode, 200)
-
-  server.close()
 })
 
 test('executeRequest - handles connection errors', async (t) => {
@@ -153,15 +153,41 @@ test('executeRequest - handles connection errors', async (t) => {
   assert.ok(result.error)
 })
 
-test('loadTest - executes requests with timing', async (t) => {
+test('executeRequest - handles body timeout with dump interceptor', async (t) => {
+  const { createServer } = require('http')
   const server = createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' })
-    res.end('ok')
+    res.flushHeaders()
+    // Don't write body data or end - let it hang after headers are sent
+    // The dump interceptor will handle this gracefully
   })
 
   await new Promise((resolve) => server.listen(0, resolve))
+  t.after(() => server.close())
+
   const port = server.address().port
   const url = `http://localhost:${port}`
+
+  const result = await executeRequest(url, 100)
+
+  // With dump interceptor, the request succeeds once headers are received
+  // The interceptor handles body consumption/timeout gracefully
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.url, url)
+  assert.strictEqual(result.statusCode, 200)
+})
+
+test('loadTest - executes requests with timing', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return 'ok'
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
 
   const tmpDir = join(__dirname, 'tmp')
   await mkdir(tmpDir, { recursive: true })
@@ -178,7 +204,6 @@ test('loadTest - executes requests with timing', async (t) => {
   assert.ok(duration < 500, `Expected duration < 500ms, got ${duration}ms`)
 
   await rm(tmpDir, { recursive: true })
-  server.close()
 })
 
 test('loadTest - handles empty CSV', async (t) => {

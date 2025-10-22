@@ -4,8 +4,15 @@ const { createReadStream } = require('fs')
 const { pipeline } = require('stream/promises')
 const { Transform } = require('stream')
 const { createInterface } = require('readline')
+const { Agent, request, interceptors } = require('undici')
 const { setTimeout } = require('timers/promises')
-const { request } = require('undici')
+const { dump } = interceptors
+
+const agent = new Agent().compose(
+  dump({
+    maxSize: 1024 // just a small size to ensure body is consumed
+  })
+)
 
 function parseCSV (filePath) {
   const fileStream = createReadStream(filePath, { encoding: 'utf-8' })
@@ -59,23 +66,13 @@ function parseCSV (filePath) {
 
 async function executeRequest (url, timeoutMs = 3000) {
   try {
-    // We support only GET
-    const { statusCode, body } = await request(url, {
-      method: 'GET'
+    const { statusCode } = await request(url, {
+      method: 'GET',
+      dispatcher: agent, // Use the agent with dump interceptor to automatically consume response body
+      bodyTimeout: timeoutMs,
+      headersTimeout: timeoutMs,
+      connectionTimeout: timeoutMs
     })
-
-    const timeout = setTimeout(timeoutMs, null, { ref: false }).then(() => {
-      throw new Error('Timeout reading first chunk')
-    })
-
-    //...and read only the first chunk to consider the request successful
-    const readChunk = (async () => {
-      for await (const _ of body) {
-        break
-      }
-    })()
-
-    await Promise.race([readChunk, timeout])
 
     if (statusCode < 200 || statusCode >= 300) {
       const err = new Error(`HTTP ${statusCode}`)
