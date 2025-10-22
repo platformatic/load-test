@@ -72,6 +72,9 @@ async function executeRequest (url, timeoutMs = 3000) {
       bodyTimeout: timeoutMs,
       headersTimeout: timeoutMs,
       connectionTimeout: timeoutMs
+      // This would be ideal to have a total timeout, but hanging with the dump interceptor
+      // TODO: investigate further
+      // signal: AbortSignal.timeout(timeoutMs) 
     })
 
     if (statusCode < 200 || statusCode >= 300) {
