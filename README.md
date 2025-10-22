@@ -35,6 +35,9 @@ load requests.csv
 # Custom timeout of 5 seconds
 load requests.csv --timeout 5000
 load requests.csv -t 5000
+
+# Test parallel execution
+load example-parallel.csv
 ```
 
 ## CSV Format
@@ -57,9 +60,11 @@ Date.now() // Returns current time in milliseconds
 
 ## How It Works
 
-- The first request executes immediately when the load test starts
+- Requests execute in parallel based on their timestamps
+- The first request(s) execute immediately when the load test starts
 - Subsequent requests execute at intervals relative to the first request's timestamp
 - For example, a request at timestamp `1761128950941` executes 500ms after a request at `1761128950441`
+- Multiple requests with the same timestamp execute in parallel
 - Each request is a GET request that starts streaming the response by reading the first chunk
 - Only 2xx status codes are considered successful
 - 3xx, 4xx, and 5xx responses are logged as errors
