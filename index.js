@@ -4,14 +4,23 @@ const { createReadStream } = require('fs')
 const { pipeline } = require('stream/promises')
 const { Transform } = require('stream')
 const { createInterface } = require('readline')
-const { Agent, request, interceptors } = require('undici')
+const { Agent, request } = require('undici')
 const { setTimeout } = require('timers/promises')
-const { dump } = interceptors
+const DecoratorHandler = require('undici/lib/handler/decorator-handler')
 
+class FirstChunkDumpHandler extends DecoratorHandler {
+  onResponseData (controller) {
+    // just consumes the first chunk and ends the response
+    super.onResponseEnd(controller, {})
+  }
+}
 const agent = new Agent().compose(
-  dump({
-    maxSize: 1024 // just a small size to ensure body is consumed
-  })
+  dispatch => {
+    return (opts, handler) => {
+      const firstChunkDumpHandlerHandler = new FirstChunkDumpHandler(handler)
+      return dispatch(opts, firstChunkDumpHandlerHandler)
+    }
+  }
 )
 
 function parseCSV (filePath) {
@@ -68,14 +77,10 @@ async function executeRequest (url, timeoutMs = 3000) {
   try {
     const { statusCode } = await request(url, {
       method: 'GET',
-      dispatcher: agent, // Use the agent with dump interceptor to automatically consume response body
-      bodyTimeout: timeoutMs,
-      headersTimeout: timeoutMs,
-      connectionTimeout: timeoutMs
-      // This would be ideal to have a total timeout, but hanging with the dump interceptor
-      // TODO: investigate further
-      // signal: AbortSignal.timeout(timeoutMs) 
+      dispatcher: agent, // Use the agent with dump interceptor to automatically consume response body first chunk
+      signal: AbortSignal.timeout(timeoutMs) 
     })
+
 
     if (statusCode < 200 || statusCode >= 300) {
       const err = new Error(`HTTP ${statusCode}`)
@@ -90,11 +95,8 @@ async function executeRequest (url, timeoutMs = 3000) {
     if (err.code) {
       console.error(`  Code: ${err.code}`)
     }
-    if (err.message && err.message !== `HTTP ${err.code?.replace('HTTP_', '')}`) {
+    if (err.message) {
       console.error(`  Message: ${err.message}`)
-    }
-    if (err.cause) {
-      console.error(`  Cause: ${err.cause.message}`)
     }
     return { success: false, url, error: err }
   }

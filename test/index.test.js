@@ -3,6 +3,7 @@
 const { test, after } = require('node:test')
 const assert = require('node:assert')
 const { writeFile, mkdir, rm } = require('fs/promises')
+const { setTimeout } = require('timers/promises')
 const { join } = require('path')
 const { parseCSV, executeRequest, loadTest } = require('../index.js')
 const fastify = require('fastify')
@@ -153,28 +154,24 @@ test('executeRequest - handles connection errors', async (t) => {
   assert.ok(result.error)
 })
 
-test('executeRequest - handles body timeout with dump interceptor', async (t) => {
-  const { createServer } = require('http')
-  const server = createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' })
-    res.flushHeaders()
-    // Don't write body data or end - let it hang after headers are sent
-    // The dump interceptor will handle this gracefully
+test('executeRequest - handles request timeout', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    await setTimeout(500)
+    return 'delayed response'
   })
 
-  await new Promise((resolve) => server.listen(0, resolve))
-  t.after(() => server.close())
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
 
-  const port = server.address().port
-  const url = `http://localhost:${port}`
-
+  const url = `http://localhost:${app.server.address().port}`
   const result = await executeRequest(url, 100)
 
-  // With dump interceptor, the request succeeds once headers are received
-  // The interceptor handles body consumption/timeout gracefully
-  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.success, false)
   assert.strictEqual(result.url, url)
-  assert.strictEqual(result.statusCode, 200)
+  assert.ok(result.error)
+  assert.ok(result.error.message.includes('aborted') || result.error.message.includes('timeout'))
 })
 
 test('loadTest - executes requests with timing', async (t) => {
