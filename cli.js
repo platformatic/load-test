@@ -9,7 +9,7 @@ const { values, positionals } = parseArgs({
     timeout: {
       type: 'string',
       short: 't',
-      default: '3000'
+      default: '60000'
     }
   },
   allowPositionals: true,
@@ -25,11 +25,11 @@ if (!csvPath) {
   console.error('Usage: load <csv-file> [--timeout <ms>]')
   console.error('')
   console.error('Options:')
-  console.error('  -t, --timeout <ms>  Timeout in milliseconds for reading first chunk (default: 3000)')
+  console.error('  -t, --timeout <ms>  Timeout in milliseconds for each request (default: 60000)')
   console.error('')
   console.error('Example:')
   console.error('  load requests.csv')
-  console.error('  load requests.csv --timeout 5000')
+  console.error('  load requests.csv --timeout 120000')
   console.error('')
   console.error('CSV Format:')
   console.error('  unix_timestamp_in_milliseconds,url')

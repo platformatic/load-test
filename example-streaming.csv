@@ -1,4 +1,4 @@
-1761128950441,https://httpbin.org/stream/10
-1761128950941,https://httpbin.org/drip?duration=5&numbytes=100
-1761128951441,https://httpbin.org/stream-bytes/1024
-1761128952441,https://httpbin.org/range/1024
+1761128950441,https://httpbin.org/stream/5
+1761128950441,https://httpbin.org/stream/5
+1761128950441,https://httpbin.org/stream-bytes/1024
+1761128950441,https://httpbin.org/stream-bytes/2048

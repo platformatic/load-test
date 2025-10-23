@@ -24,17 +24,17 @@ node cli.js <csv-file> [--timeout <ms>]
 
 ### Options
 
-- `-t, --timeout <ms>` - Total timeout in milliseconds for each request (default: 3000)
+- `-t, --timeout <ms>` - Total timeout in milliseconds for each request (default: 60000)
 
 ### Examples
 
 ```bash
-# Basic usage with default 3 second timeout
+# Basic usage with default 60 second timeout
 load example.csv
 
-# Custom timeout of 5 seconds
-load example.csv --timeout 5000
-load example.csv -t 5000
+# Custom timeout of 2 minutes
+load example.csv --timeout 120000
+load example.csv -t 120000
 
 # Test parallel execution
 load example-parallel.csv
@@ -68,12 +68,12 @@ Date.now() // Returns current time in milliseconds
 - Subsequent requests execute at intervals relative to the first request's timestamp
 - For example, a request at timestamp `1761128950941` executes 500ms after a request at `1761128950441`
 - Multiple requests with the same timestamp execute in parallel
-- Each request is a GET request with automatic response body consumption via a custom interceptor
-- The interceptor consumes only the first chunk of the response, making it efficient for large or streaming responses
+- Each request is a GET request that fully consumes the response body via `body.dump()`
+- Response bodies are consumed completely to simulate real client behavior
 - Only 2xx status codes are considered successful
 - 3xx, 4xx, and 5xx responses are logged as errors
 - Connection errors and timeouts are logged with detailed information
-- Default total request timeout is 3 seconds (configurable via `--timeout`)
+- Default total request timeout is 60 seconds (configurable via `--timeout`)
 
 ## Output Example
 

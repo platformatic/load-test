@@ -8,17 +8,6 @@ const { Agent, request } = require('undici')
 const { setTimeout } = require('timers/promises')
 const DecoratorHandler = require('undici/lib/handler/decorator-handler')
 
-class FirstChunkDumpHandler extends DecoratorHandler {
-  onResponseData (controller) {
-    super.onResponseEnd(controller, {}) // just consumes the first chunk and ends the response
-  }
-}
-const agent = new Agent().compose(
-  dispatch => {
-    return (opts, handler) => dispatch(opts, new FirstChunkDumpHandler(handler))
-  }
-)
-
 function parseCSV (filePath) {
   const fileStream = createReadStream(filePath, { encoding: 'utf-8' })
   const rl = createInterface({
@@ -69,13 +58,13 @@ function parseCSV (filePath) {
   return parseTransform
 }
 
-async function executeRequest (url, timeoutMs = 3000) {
+async function executeRequest (url, timeoutMs = 60000) {
   try {
-    const { statusCode } = await request(url, {
+    const { statusCode, body } = await request(url, {
       method: 'GET',
-      dispatcher: agent, // Use the agent with dump interceptor to automatically consume response body first chunk
       signal: AbortSignal.timeout(timeoutMs) 
     })
+    await body.dump() // Consume the response body to simulate a real client
 
 
     if (statusCode < 200 || statusCode >= 300) {
@@ -98,7 +87,7 @@ async function executeRequest (url, timeoutMs = 3000) {
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 3000) {
+async function loadTest (csvPath, timeoutMs = 60000) {
   console.log('Starting load test...\n')
 
   const startTime = Date.now()
