@@ -4,9 +4,9 @@ const { createReadStream } = require('fs')
 const { pipeline } = require('stream/promises')
 const { Transform } = require('stream')
 const { createInterface } = require('readline')
-const { Agent, request } = require('undici')
+const { request } = require('undici')
 const { setTimeout } = require('timers/promises')
-const DecoratorHandler = require('undici/lib/handler/decorator-handler')
+const { createHistogram } = require('node:perf_hooks')
 
 function parseCSV (filePath) {
   const fileStream = createReadStream(filePath, { encoding: 'utf-8' })
@@ -58,14 +58,15 @@ function parseCSV (filePath) {
   return parseTransform
 }
 
-async function executeRequest (url, timeoutMs = 60000) {
+async function executeRequest (url, timeoutMs = 60000, histogram = null) {
+  const startTime = process.hrtime.bigint()
+  let latencyNs
   try {
     const { statusCode, body } = await request(url, {
       method: 'GET',
-      signal: AbortSignal.timeout(timeoutMs) 
+      signal: AbortSignal.timeout(timeoutMs)
     })
     await body.dump() // Consume the response body to simulate a real client
-
 
     if (statusCode < 200 || statusCode >= 300) {
       const err = new Error(`HTTP ${statusCode}`)
@@ -74,7 +75,7 @@ async function executeRequest (url, timeoutMs = 60000) {
     }
 
     console.log(`✓ ${url} - ${statusCode}`)
-    return { success: true, url, statusCode }
+    return { success: true, url, statusCode, latency: Number(latencyNs) }
   } catch (err) {
     console.error(`✗ ERROR: ${url}`)
     if (err.code) {
@@ -83,15 +84,51 @@ async function executeRequest (url, timeoutMs = 60000) {
     if (err.message) {
       console.error(`  Message: ${err.message}`)
     }
-    return { success: false, url, error: err }
+    return { success: false, url, error: err, latency: Number(latencyNs) }
+  } finally {
+    const endTime = process.hrtime.bigint()
+    latencyNs = endTime - startTime
+
+    if (histogram) {
+      histogram.record(latencyNs)
+    }
   }
 }
 
 async function loadTest (csvPath, timeoutMs = 60000) {
   console.log('Starting load test...\n')
 
+  const histogram = createHistogram()
   const startTime = Date.now()
   let firstRequestTime = null
+  let inFlightRequests = 0
+  let allRequestsInitiated = false
+  let resolveCompletion
+  let errorCount = 0
+
+  const completionPromise = new Promise((resolve) => {
+    resolveCompletion = resolve
+  })
+
+  const checkCompletion = () => {
+    if (allRequestsInitiated && inFlightRequests === 0) {
+      resolveCompletion()
+    }
+  }
+
+  const wrappedExecuteRequest = async (url) => {
+    inFlightRequests++
+    try {
+      const result = await executeRequest(url, timeoutMs, histogram)
+      if (!result.success) {
+        errorCount++
+      }
+      return result
+    } finally {
+      inFlightRequests--
+      checkCompletion()
+    }
+  }
 
   for await (const req of parseCSV(csvPath)) {
     if (firstRequestTime === null) {
@@ -107,13 +144,33 @@ async function loadTest (csvPath, timeoutMs = 60000) {
       await setTimeout(delay)
     }
 
-    executeRequest(req.url, timeoutMs)
+    wrappedExecuteRequest(req.url)
   }
 
   if (firstRequestTime === null) {
     console.log('No requests found in CSV file')
     return
   }
+
+  console.log('Waiting for all requests to complete...\n')
+
+  allRequestsInitiated = true
+  checkCompletion()
+
+  await completionPromise
+
+  console.log('=== Latency Statistics ===')
+  console.log(`Total requests: ${histogram.count}`)
+  console.log(`Successful: ${histogram.count - errorCount}`)
+  console.log(`Errors: ${errorCount}`)
+  console.log(`Min: ${(histogram.min / 1_000_000).toFixed(2)} ms`)
+  console.log(`Max: ${(histogram.max / 1_000_000).toFixed(2)} ms`)
+  console.log(`Mean: ${(histogram.mean / 1_000_000).toFixed(2)} ms`)
+  console.log(`Stddev: ${(histogram.stddev / 1_000_000).toFixed(2)} ms`)
+  console.log(`P50: ${(histogram.percentile(50) / 1_000_000).toFixed(2)} ms`)
+  console.log(`P75: ${(histogram.percentile(75) / 1_000_000).toFixed(2)} ms`)
+  console.log(`P90: ${(histogram.percentile(90) / 1_000_000).toFixed(2)} ms`)
+  console.log(`P99: ${(histogram.percentile(99) / 1_000_000).toFixed(2)} ms`)
 }
 
 module.exports = { loadTest, parseCSV, executeRequest }

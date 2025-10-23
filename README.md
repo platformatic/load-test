@@ -74,6 +74,8 @@ Date.now() // Returns current time in milliseconds
 - 3xx, 4xx, and 5xx responses are logged as errors
 - Connection errors and timeouts are logged with detailed information
 - Default total request timeout is 60 seconds (configurable via `--timeout`)
+- Latency for each request is tracked using `node:perf_hooks` histogram with nanosecond precision
+- After all requests complete, detailed statistics are displayed including percentiles (P50, P75, P90, P99)
 
 ## Output Example
 
@@ -86,7 +88,20 @@ Starting load test...
 ✓ https://www.npmjs.com - 200
 ✓ https://www.nodejs.org - 200
 
-All requests initiated
+Waiting for all requests to complete...
+
+=== Latency Statistics ===
+Total requests: 4
+Successful: 4
+Errors: 0
+Min: 45.23 ms
+Max: 234.56 ms
+Mean: 123.45 ms
+Stddev: 67.89 ms
+P50: 112.34 ms
+P75: 156.78 ms
+P90: 201.23 ms
+P99: 234.56 ms
 ```
 
 Example with errors:
@@ -97,6 +112,21 @@ Example with errors:
   Message: HTTP 404
 ✗ ERROR: http://localhost:9999
   Code: ECONNREFUSED
+
+Waiting for all requests to complete...
+
+=== Latency Statistics ===
+Total requests: 4
+Successful: 2
+Errors: 2
+Min: 45.23 ms
+Max: 234.56 ms
+Mean: 123.45 ms
+Stddev: 67.89 ms
+P50: 112.34 ms
+P75: 156.78 ms
+P90: 201.23 ms
+P99: 234.56 ms
 ```
 
 ## Error Handling
@@ -108,6 +138,20 @@ The module provides detailed error logging:
 - **Timeout Errors**: If a request cannot complete within the specified timeout period (via `AbortSignal.timeout()`)
 
 All errors are logged to stderr with the URL and error details, but the load test continues to execute remaining requests.
+
+## Latency Statistics
+
+After all requests complete, the tool displays comprehensive latency statistics using a high-precision histogram:
+
+- **Total requests**: Total number of requests executed
+- **Successful**: Number of requests that received 2xx status codes
+- **Errors**: Number of requests that failed (non-2xx responses, connection errors, timeouts)
+- **Min/Max**: Minimum and maximum latency observed
+- **Mean**: Average latency across all requests
+- **Stddev**: Standard deviation of latencies
+- **P50/P75/P90/P99**: Latency percentiles showing distribution
+
+Latencies are measured with nanosecond precision using `process.hrtime.bigint()` and displayed in milliseconds. Both successful and failed requests are included in the latency measurements.
 
 ## Testing
 
