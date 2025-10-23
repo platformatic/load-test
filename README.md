@@ -24,20 +24,23 @@ node cli.js <csv-file> [--timeout <ms>]
 
 ### Options
 
-- `-t, --timeout <ms>` - Timeout in milliseconds for reading the first chunk of each response (default: 3000)
+- `-t, --timeout <ms>` - Total timeout in milliseconds for each request (default: 3000)
 
 ### Examples
 
 ```bash
 # Basic usage with default 3 second timeout
-load requests.csv
+load example.csv
 
 # Custom timeout of 5 seconds
-load requests.csv --timeout 5000
-load requests.csv -t 5000
+load example.csv --timeout 5000
+load example.csv -t 5000
 
 # Test parallel execution
 load example-parallel.csv
+
+# Test with streaming URLs
+load example-streaming.csv
 ```
 
 ## CSV Format
@@ -65,26 +68,34 @@ Date.now() // Returns current time in milliseconds
 - Subsequent requests execute at intervals relative to the first request's timestamp
 - For example, a request at timestamp `1761128950941` executes 500ms after a request at `1761128950441`
 - Multiple requests with the same timestamp execute in parallel
-- Each request is a GET request that starts streaming the response by reading the first chunk
+- Each request is a GET request with automatic response body consumption via a custom interceptor
+- The interceptor consumes only the first chunk of the response, making it efficient for large or streaming responses
 - Only 2xx status codes are considered successful
 - 3xx, 4xx, and 5xx responses are logged as errors
 - Connection errors and timeouts are logged with detailed information
-- Default timeout for reading the first chunk is 3 seconds (configurable)
+- Default total request timeout is 3 seconds (configurable via `--timeout`)
 
 ## Output Example
 
 ```bash
 $ load example.csv
-Loaded 4 requests from example.csv
 Starting load test...
 
-✓ https://example.com/api/stream - 200
-✓ https://example.com/api/data - 200
+✓ https://www.google.com - 200
+✓ https://www.github.com - 200
+✓ https://www.npmjs.com - 200
+✓ https://www.nodejs.org - 200
 
 All requests initiated
-✗ ERROR: https://example.com/api/users
+```
+
+Example with errors:
+
+```bash
+✗ ERROR: https://example.com/notfound
   Code: HTTP_404
-✗ ERROR: https://example.com/api/timeout
+  Message: HTTP 404
+✗ ERROR: http://localhost:9999
   Code: ECONNREFUSED
 ```
 
@@ -94,7 +105,7 @@ The module provides detailed error logging:
 
 - **HTTP Status Errors**: Non-2xx responses are logged with their status code (e.g., `HTTP_301`, `HTTP_404`, `HTTP_500`)
 - **Connection Errors**: Network errors include the error code (e.g., `ECONNREFUSED`, `ETIMEDOUT`)
-- **Timeout Errors**: If a response chunk cannot be read within the timeout period
+- **Timeout Errors**: If a request cannot complete within the specified timeout period (via `AbortSignal.timeout()`)
 
 All errors are logged to stderr with the URL and error details, but the load test continues to execute remaining requests.
 

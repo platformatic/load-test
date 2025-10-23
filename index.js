@@ -10,16 +10,12 @@ const DecoratorHandler = require('undici/lib/handler/decorator-handler')
 
 class FirstChunkDumpHandler extends DecoratorHandler {
   onResponseData (controller) {
-    // just consumes the first chunk and ends the response
-    super.onResponseEnd(controller, {})
+    super.onResponseEnd(controller, {}) // just consumes the first chunk and ends the response
   }
 }
 const agent = new Agent().compose(
   dispatch => {
-    return (opts, handler) => {
-      const firstChunkDumpHandlerHandler = new FirstChunkDumpHandler(handler)
-      return dispatch(opts, firstChunkDumpHandlerHandler)
-    }
+    return (opts, handler) => dispatch(opts, new FirstChunkDumpHandler(handler))
   }
 )
 
@@ -129,8 +125,6 @@ async function loadTest (csvPath, timeoutMs = 3000) {
     console.log('No requests found in CSV file')
     return
   }
-
-  console.log('\nAll requests initiated')
 }
 
 module.exports = { loadTest, parseCSV, executeRequest }

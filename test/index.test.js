@@ -126,11 +126,20 @@ test('executeRequest - successful GET request', async (t) => {
 })
 
 test('executeRequest - handles streaming response', async (t) => {
+  const { Readable } = require('stream')
   const app = fastify()
 
   app.get('/', async (request, reply) => {
+    const stream = Readable.from(async function * () {
+      yield 'chunk1\n'
+      await setTimeout(10)
+      yield 'chunk2\n'
+      await setTimeout(10)
+      yield 'chunk3\n'
+    }())
+
     reply.header('Content-Type', 'text/plain')
-    return 'chunk1chunk2chunk3'
+    return stream
   })
 
   await app.listen({ port: 0 })
