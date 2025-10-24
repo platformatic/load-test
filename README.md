@@ -13,19 +13,20 @@ npm install
 ### Command Line
 
 ```bash
-load <csv-file> [--timeout <ms>] [--accelerator <factor>]
+load <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>]
 ```
 
 Or using Node.js directly:
 
 ```bash
-node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>]
+node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>]
 ```
 
 ### Options
 
 - `-t, --timeout <ms>` - Total timeout in milliseconds for each request (default: 60000)
 - `-a, --accelerator <n>` - Time acceleration factor (default: 1). Speeds up the delays between request initiations by dividing them by this factor. For example, accelerator=10 makes a 1000ms delay become 100ms. Note: This only affects the timing of when requests are *initiated*, not how long the actual HTTP requests take to complete.
+- `-h, --host <hostname>` - Rewrite the host in all URLs to this value (e.g., `localhost:3000`). Useful for replaying production traffic against a local or staging server. The protocol (http/https) and path are preserved from the original URL.
 
 ### Examples
 
@@ -43,6 +44,13 @@ load example.csv -a 10
 
 # Run 100x faster for quick testing
 load example.csv --accelerator 100
+
+# Rewrite all requests to local server
+load example.csv --host localhost:3000
+load example.csv -h localhost:3000
+
+# Combine options: fast replay against local server
+load example.csv --accelerator 100 --host localhost:3000
 
 # Test parallel execution
 load example-parallel.csv

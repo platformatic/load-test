@@ -223,3 +223,37 @@ test('loadTest - handles empty CSV', async (t) => {
 
   await rm(tmpDir, { recursive: true })
 })
+
+test('loadTest - host rewrite changes URL host', async (t) => {
+  const app = fastify()
+  const requestedUrls = []
+
+  app.get('/api/test', async (request, reply) => {
+    requestedUrls.push(`http://${request.headers.host}${request.url}`)
+    return { ok: true }
+  })
+
+  app.get('/api/data', async (request, reply) => {
+    requestedUrls.push(`http://${request.headers.host}${request.url}`)
+    return { ok: true }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const localPort = app.server.address().port
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-host-rewrite.csv')
+
+  const now = Date.now()
+  await writeFile(csvPath, `${now},http://example.com/api/test\n${now},http://other.com/api/data`)
+
+  await loadTest(csvPath, 60000, 1, `localhost:${localPort}`)
+
+  assert.strictEqual(requestedUrls.length, 2)
+  assert.strictEqual(requestedUrls[0], `http://localhost:${localPort}/api/test`)
+  assert.strictEqual(requestedUrls[1], `http://localhost:${localPort}/api/data`)
+
+  await rm(tmpDir, { recursive: true })
+})
