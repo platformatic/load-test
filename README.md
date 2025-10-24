@@ -13,18 +13,19 @@ npm install
 ### Command Line
 
 ```bash
-load <csv-file> [--timeout <ms>]
+load <csv-file> [--timeout <ms>] [--accelerator <factor>]
 ```
 
 Or using Node.js directly:
 
 ```bash
-node cli.js <csv-file> [--timeout <ms>]
+node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>]
 ```
 
 ### Options
 
 - `-t, --timeout <ms>` - Total timeout in milliseconds for each request (default: 60000)
+- `-a, --accelerator <n>` - Time acceleration factor (default: 1). Speeds up the delays between request initiations by dividing them by this factor. For example, accelerator=10 makes a 1000ms delay become 100ms. Note: This only affects the timing of when requests are *initiated*, not how long the actual HTTP requests take to complete.
 
 ### Examples
 
@@ -35,6 +36,13 @@ load example.csv
 # Custom timeout of 2 minutes
 load example.csv --timeout 120000
 load example.csv -t 120000
+
+# Run 10x faster (reduce delays between requests by 10x)
+load example.csv --accelerator 10
+load example.csv -a 10
+
+# Run 100x faster for quick testing
+load example.csv --accelerator 100
 
 # Test parallel execution
 load example-parallel.csv
@@ -67,6 +75,7 @@ Date.now() // Returns current time in milliseconds
 - The first request(s) execute immediately when the load test starts
 - Subsequent requests execute at intervals relative to the first request's timestamp
 - For example, a request at timestamp `1761128950941` executes 500ms after a request at `1761128950441`
+- The `--accelerator` option can speed up these delays (e.g., with accelerator=10, the 500ms delay becomes 50ms)
 - Multiple requests with the same timestamp execute in parallel
 - Each request is a GET request that fully consumes the response body via `body.dump()`
 - Response bodies are consumed completely to simulate real client behavior
