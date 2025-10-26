@@ -145,7 +145,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     }
 
     const relativeTime = req.time - firstRequestTime
-    const acceleratedTime = relativeTime / accelerator
+    const acceleratedTime = Math.floor(relativeTime / accelerator)
     const targetTime = startTime + acceleratedTime
     const now = Date.now()
     const delay = targetTime - now
