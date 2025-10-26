@@ -95,8 +95,17 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null) {
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 60000) {
-  console.log('Starting load test...\n')
+async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null) {
+  console.log('Starting load test...')
+  if (accelerator !== 1) {
+    console.log(`Time acceleration: ${accelerator}x`)
+  }
+  if (hostRewrite) {
+    console.log(`Host rewrite: ${hostRewrite}`)
+  }
+  if (accelerator !== 1 || hostRewrite) {
+    console.log('')
+  }
 
   const histogram = createHistogram()
   const startTime = Date.now()
@@ -136,7 +145,8 @@ async function loadTest (csvPath, timeoutMs = 60000) {
     }
 
     const relativeTime = req.time - firstRequestTime
-    const targetTime = startTime + relativeTime
+    const acceleratedTime = Math.floor(relativeTime / accelerator)
+    const targetTime = startTime + acceleratedTime
     const now = Date.now()
     const delay = targetTime - now
 
@@ -144,7 +154,14 @@ async function loadTest (csvPath, timeoutMs = 60000) {
       await setTimeout(delay)
     }
 
-    wrappedExecuteRequest(req.url)
+    let url = req.url
+    if (hostRewrite) {
+      const urlObj = new URL(url)
+      urlObj.host = hostRewrite
+      url = urlObj.toString()
+    }
+
+    wrappedExecuteRequest(url)
   }
 
   if (firstRequestTime === null) {
