@@ -106,6 +106,27 @@ test('parseCSV - throws on empty URL', async (t) => {
   await rm(tmpDir, { recursive: true })
 })
 
+test('parseCSV - parses scientific notation timestamps', async (t) => {
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-scientific.csv')
+
+  await writeFile(csvPath, '1.761317942115E12,https://example.com\n1.761317943115E12,https://test.com')
+
+  const requests = []
+  for await (const req of parseCSV(csvPath)) {
+    requests.push(req)
+  }
+
+  assert.strictEqual(requests.length, 2)
+  assert.strictEqual(requests[0].time, 1761317942115)
+  assert.strictEqual(requests[0].url, 'https://example.com')
+  assert.strictEqual(requests[1].time, 1761317943115)
+  assert.strictEqual(requests[1].url, 'https://test.com')
+
+  await rm(tmpDir, { recursive: true })
+})
+
 test('executeRequest - successful GET request', async (t) => {
   const app = fastify()
 
@@ -254,6 +275,34 @@ test('loadTest - host rewrite changes URL host', async (t) => {
   assert.strictEqual(requestedUrls.length, 2)
   assert.strictEqual(requestedUrls[0], `http://localhost:${localPort}/api/test`)
   assert.strictEqual(requestedUrls[1], `http://localhost:${localPort}/api/data`)
+
+  await rm(tmpDir, { recursive: true })
+})
+
+test('loadTest - handles scientific notation with accelerator', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return 'ok'
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-scientific-accelerator.csv')
+
+  await writeFile(csvPath, `1.761317942115E12,${url}\n1.761317943115E12,${url}\n1.761317944115E12,${url}`)
+
+  const start = Date.now()
+  await loadTest(csvPath, 60000, 10)
+  const duration = Date.now() - start
+
+  assert.ok(duration >= 200, `Expected duration >= 200ms, got ${duration}ms`)
+  assert.ok(duration < 500, `Expected duration < 500ms, got ${duration}ms`)
 
   await rm(tmpDir, { recursive: true })
 })

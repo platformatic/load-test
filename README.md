@@ -72,6 +72,13 @@ The CSV file should contain two columns: Unix timestamp in milliseconds and URL.
 
 **Format:** `unix_timestamp_in_milliseconds,url`
 
+Timestamps can be in either standard notation or scientific notation:
+
+```csv
+1.761128950441E12,https://example.com/api/stream
+1.761128950941E12,https://example.com/api/data
+```
+
 You can generate timestamps in JavaScript:
 ```javascript
 Date.now() // Returns current time in milliseconds
