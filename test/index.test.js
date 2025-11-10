@@ -306,3 +306,37 @@ test('loadTest - handles scientific notation with accelerator', async (t) => {
 
   await rm(tmpDir, { recursive: true })
 })
+
+test('loadTest - adds cache=false to querystring with --no-cache', async (t) => {
+  const app = fastify()
+  const requestedUrls = []
+
+  app.get('/api/test', async (request, reply) => {
+    requestedUrls.push(request.url)
+    return { ok: true }
+  })
+
+  app.get('/api/data', async (request, reply) => {
+    requestedUrls.push(request.url)
+    return { ok: true }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const localPort = app.server.address().port
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-no-cache.csv')
+
+  const now = Date.now()
+  await writeFile(csvPath, `${now},http://localhost:${localPort}/api/test\n${now},http://localhost:${localPort}/api/data?foo=bar`)
+
+  await loadTest(csvPath, 60000, 1, null, true)
+
+  assert.strictEqual(requestedUrls.length, 2)
+  assert.strictEqual(requestedUrls[0], '/api/test?cache=false')
+  assert.strictEqual(requestedUrls[1], '/api/data?foo=bar&cache=false')
+
+  await rm(tmpDir, { recursive: true })
+})
