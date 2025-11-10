@@ -127,6 +127,27 @@ test('parseCSV - parses scientific notation timestamps', async (t) => {
   await rm(tmpDir, { recursive: true })
 })
 
+test('parseCSV - skips first line with skipHeader', async (t) => {
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-skip-header.csv')
+
+  await writeFile(csvPath, 'time,url\n1761128950441,https://example.com\n1761128950941,https://test.com')
+
+  const requests = []
+  for await (const req of parseCSV(csvPath, true)) {
+    requests.push(req)
+  }
+
+  assert.strictEqual(requests.length, 2)
+  assert.strictEqual(requests[0].time, 1761128950441)
+  assert.strictEqual(requests[0].url, 'https://example.com')
+  assert.strictEqual(requests[1].time, 1761128950941)
+  assert.strictEqual(requests[1].url, 'https://test.com')
+
+  await rm(tmpDir, { recursive: true })
+})
+
 test('executeRequest - successful GET request', async (t) => {
   const app = fastify()
 
@@ -337,6 +358,30 @@ test('loadTest - adds cache=false to querystring with --no-cache', async (t) => 
   assert.strictEqual(requestedUrls.length, 2)
   assert.strictEqual(requestedUrls[0], '/api/test?cache=false')
   assert.strictEqual(requestedUrls[1], '/api/data?foo=bar&cache=false')
+
+  await rm(tmpDir, { recursive: true })
+})
+
+test('loadTest - skips header line with skipHeader flag', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return 'ok'
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-skip-header-loadtest.csv')
+
+  const now = Date.now()
+  await writeFile(csvPath, `time,url\n${now},${url}\n${now + 100},${url}`)
+
+  await loadTest(csvPath, 60000, 1, null, false, true)
 
   await rm(tmpDir, { recursive: true })
 })
