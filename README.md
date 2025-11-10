@@ -13,13 +13,13 @@ npm install
 ### Command Line
 
 ```bash
-load <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache]
+load <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache] [--skip-header]
 ```
 
 Or using Node.js directly:
 
 ```bash
-node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache]
+node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache] [--skip-header]
 ```
 
 ### Options
@@ -28,6 +28,7 @@ node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostna
 - `-a, --accelerator <n>` - Time acceleration factor (default: 1). Speeds up the delays between request initiations by dividing them by this factor. For example, accelerator=10 makes a 1000ms delay become 100ms. Note: This only affects the timing of when requests are *initiated*, not how long the actual HTTP requests take to complete.
 - `-h, --host <hostname>` - Rewrite the host in all URLs to this value (e.g., `localhost:3000`). Useful for replaying production traffic against a local or staging server. The protocol (http/https) and path are preserved from the original URL.
 - `--no-cache` - Add `cache=false` to the querystring of all URLs to bypass caching. Useful for testing without cache influence.
+- `--skip-header` - Skip the first line of the CSV file. Useful when your CSV file has a header row.
 
 ### Examples
 
@@ -55,6 +56,9 @@ load example.csv --accelerator 100 --host localhost:3000
 
 # Bypass cache by adding cache=false to all URLs
 load example.csv --no-cache
+
+# Skip header row in CSV file
+load example.csv --skip-header
 
 # Combine with other options
 load example.csv --no-cache --host localhost:3000 --accelerator 10
@@ -84,6 +88,14 @@ Timestamps can be in either standard notation or scientific notation:
 ```csv
 1.761128950441E12,https://example.com/api/stream
 1.761128950941E12,https://example.com/api/data
+```
+
+If your CSV file has a header row, use the `--skip-header` flag:
+
+```csv
+time,url
+1761128950441,https://example.com/api/stream
+1761128950941,https://example.com/api/data
 ```
 
 You can generate timestamps in JavaScript:

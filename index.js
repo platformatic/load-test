@@ -8,7 +8,7 @@ const { request } = require('undici')
 const { setTimeout } = require('timers/promises')
 const { createHistogram } = require('node:perf_hooks')
 
-function parseCSV (filePath) {
+function parseCSV (filePath, skipHeader = false) {
   const fileStream = createReadStream(filePath, { encoding: 'utf-8' })
   const rl = createInterface({
     input: fileStream,
@@ -16,6 +16,7 @@ function parseCSV (filePath) {
   })
 
   let lineNumber = 0
+  let firstLineSkipped = false
 
   const parseTransform = new Transform({
     objectMode: true,
@@ -24,6 +25,12 @@ function parseCSV (filePath) {
       const trimmedLine = line.trim()
 
       if (!trimmedLine) {
+        callback()
+        return
+      }
+
+      if (skipHeader && !firstLineSkipped) {
+        firstLineSkipped = true
         callback()
         return
       }
@@ -95,7 +102,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null) {
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false) {
+async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false) {
   console.log('Starting load test...')
   if (accelerator !== 1) {
     console.log(`Time acceleration: ${accelerator}x`)
@@ -106,7 +113,10 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (noCache) {
     console.log('Cache busting: enabled (cache=false)')
   }
-  if (accelerator !== 1 || hostRewrite || noCache) {
+  if (skipHeader) {
+    console.log('Skipping first line: enabled')
+  }
+  if (accelerator !== 1 || hostRewrite || noCache || skipHeader) {
     console.log('')
   }
 
@@ -142,7 +152,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     }
   }
 
-  for await (const req of parseCSV(csvPath)) {
+  for await (const req of parseCSV(csvPath, skipHeader)) {
     if (firstRequestTime === null) {
       firstRequestTime = req.time
     }
