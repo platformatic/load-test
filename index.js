@@ -95,7 +95,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null) {
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null) {
+async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false) {
   console.log('Starting load test...')
   if (accelerator !== 1) {
     console.log(`Time acceleration: ${accelerator}x`)
@@ -103,7 +103,10 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (hostRewrite) {
     console.log(`Host rewrite: ${hostRewrite}`)
   }
-  if (accelerator !== 1 || hostRewrite) {
+  if (noCache) {
+    console.log('Cache busting: enabled (cache=false)')
+  }
+  if (accelerator !== 1 || hostRewrite || noCache) {
     console.log('')
   }
 
@@ -155,9 +158,14 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     }
 
     let url = req.url
-    if (hostRewrite) {
+    if (hostRewrite || noCache) {
       const urlObj = new URL(url)
-      urlObj.host = hostRewrite
+      if (hostRewrite) {
+        urlObj.host = hostRewrite
+      }
+      if (noCache) {
+        urlObj.searchParams.set('cache', 'false')
+      }
       url = urlObj.toString()
     }
 

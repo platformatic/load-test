@@ -13,13 +13,13 @@ npm install
 ### Command Line
 
 ```bash
-load <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>]
+load <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache]
 ```
 
 Or using Node.js directly:
 
 ```bash
-node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>]
+node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache]
 ```
 
 ### Options
@@ -27,6 +27,7 @@ node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostna
 - `-t, --timeout <ms>` - Total timeout in milliseconds for each request (default: 60000)
 - `-a, --accelerator <n>` - Time acceleration factor (default: 1). Speeds up the delays between request initiations by dividing them by this factor. For example, accelerator=10 makes a 1000ms delay become 100ms. Note: This only affects the timing of when requests are *initiated*, not how long the actual HTTP requests take to complete.
 - `-h, --host <hostname>` - Rewrite the host in all URLs to this value (e.g., `localhost:3000`). Useful for replaying production traffic against a local or staging server. The protocol (http/https) and path are preserved from the original URL.
+- `--no-cache` - Add `cache=false` to the querystring of all URLs to bypass caching. Useful for testing without cache influence.
 
 ### Examples
 
@@ -51,6 +52,12 @@ load example.csv -h localhost:3000
 
 # Combine options: fast replay against local server
 load example.csv --accelerator 100 --host localhost:3000
+
+# Bypass cache by adding cache=false to all URLs
+load example.csv --no-cache
+
+# Combine with other options
+load example.csv --no-cache --host localhost:3000 --accelerator 10
 
 # Test parallel execution
 load example-parallel.csv

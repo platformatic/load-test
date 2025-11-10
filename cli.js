@@ -19,6 +19,10 @@ const { values, positionals } = parseArgs({
     host: {
       type: 'string',
       short: 'h'
+    },
+    'no-cache': {
+      type: 'boolean',
+      default: false
     }
   },
   allowPositionals: true,
@@ -29,22 +33,25 @@ const csvPath = positionals[0]
 const timeout = parseInt(values.timeout, 10)
 const accelerator = parseFloat(values.accelerator)
 const hostRewrite = values.host
+const noCache = values['no-cache']
 
 if (!csvPath) {
   console.error('Error: CSV file path is required')
   console.error('')
-  console.error('Usage: load <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>]')
+  console.error('Usage: load <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache]')
   console.error('')
   console.error('Options:')
   console.error('  -t, --timeout <ms>      Timeout in milliseconds for each request (default: 60000)')
   console.error('  -a, --accelerator <n>   Time acceleration factor (default: 1, e.g., 2 = 2x speed, 10 = 10x speed)')
   console.error('  -h, --host <hostname>   Rewrite the host in all URLs to this value (e.g., localhost:3000)')
+  console.error('  --no-cache              Add cache=false to the querystring of all URLs')
   console.error('')
   console.error('Example:')
   console.error('  load requests.csv')
   console.error('  load requests.csv --timeout 120000')
   console.error('  load requests.csv --accelerator 10')
   console.error('  load requests.csv --host localhost:3000')
+  console.error('  load requests.csv --no-cache')
   console.error('')
   console.error('CSV Format:')
   console.error('  unix_timestamp_in_milliseconds,url')
@@ -68,7 +75,7 @@ if (accelerator <= 0) {
   process.exit(1)
 }
 
-loadTest(csvPath, timeout, accelerator, hostRewrite).catch((err) => {
+loadTest(csvPath, timeout, accelerator, hostRewrite, noCache).catch((err) => {
   console.error('Fatal error:', err.message)
   process.exit(1)
 })
