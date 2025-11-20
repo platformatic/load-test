@@ -106,7 +106,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false) {
+async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0) {
   console.log('Starting load test...')
   if (accelerator !== 1) {
     console.log(`Time acceleration: ${accelerator}x`)
@@ -123,17 +123,26 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (noVerify) {
     console.log('Certificate verification: disabled')
   }
-  if (accelerator !== 1 || hostRewrite || noCache || skipHeader || noVerify) {
+  if (resetConnections > 0) {
+    console.log(`Connection reset: every ${resetConnections} requests`)
+  }
+  if (accelerator !== 1 || hostRewrite || noCache || skipHeader || noVerify || resetConnections > 0) {
     console.log('')
   }
 
-  const dispatcher = noVerify
-    ? new Agent({
-      connect: {
-        rejectUnauthorized: false
-      }
-    })
-    : null
+  const createDispatcher = () => {
+    if (resetConnections > 0 || noVerify) {
+      return new Agent({
+        connect: {
+          rejectUnauthorized: !noVerify
+        }
+      })
+    }
+    return null
+  }
+
+  let dispatcher = createDispatcher()
+  let requestCounter = 0
 
   const histogram = createHistogram()
   const startTime = Date.now()
@@ -154,12 +163,29 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   }
 
   const wrappedExecuteRequest = async (url) => {
+    // Capture current dispatcher reference for this request
+    const requestDispatcher = dispatcher
+
     inFlightRequests++
     try {
-      const result = await executeRequest(url, timeoutMs, histogram, dispatcher)
+      const result = await executeRequest(url, timeoutMs, histogram, requestDispatcher)
       if (!result.success) {
         errorCount++
       }
+
+      if (resetConnections > 0) {
+        requestCounter++
+        if (requestCounter >= resetConnections) {
+          // Close old dispatcher gracefully (waits for in-flight requests)
+          if (dispatcher) {
+            dispatcher.close()  // Don't await - let it drain in background
+          }
+          // Create new dispatcher for subsequent requests
+          dispatcher = createDispatcher()
+          requestCounter = 0
+        }
+      }
+
       return result
     } finally {
       inFlightRequests--
@@ -208,6 +234,11 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   checkCompletion()
 
   await completionPromise
+
+  // Close current dispatcher
+  if (dispatcher) {
+    await dispatcher.close()
+  }
 
   console.log('=== Latency Statistics ===')
   console.log(`Total requests: ${histogram.count}`)
