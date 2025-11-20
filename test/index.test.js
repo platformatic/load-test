@@ -385,3 +385,27 @@ test('loadTest - skips header line with skipHeader flag', async (t) => {
 
   await rm(tmpDir, { recursive: true })
 })
+
+test('loadTest - disables certificate verification with noVerify flag', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return 'ok'
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-no-verify.csv')
+
+  const now = Date.now()
+  await writeFile(csvPath, `${now},${url}`)
+
+  await loadTest(csvPath, 60000, 1, null, false, false, true)
+
+  await rm(tmpDir, { recursive: true })
+})

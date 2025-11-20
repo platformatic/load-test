@@ -13,13 +13,13 @@ npm install
 ### Command Line
 
 ```bash
-load <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache] [--skip-header]
+load <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache] [--skip-header] [--no-verify]
 ```
 
 Or using Node.js directly:
 
 ```bash
-node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache] [--skip-header]
+node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache] [--skip-header] [--no-verify]
 ```
 
 ### Options
@@ -29,6 +29,7 @@ node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostna
 - `-h, --host <hostname>` - Rewrite the host in all URLs to this value (e.g., `localhost:3000`). Useful for replaying production traffic against a local or staging server. The protocol (http/https) and path are preserved from the original URL.
 - `--no-cache` - Add `cache=false` to the querystring of all URLs to bypass caching. Useful for testing without cache influence.
 - `--skip-header` - Skip the first line of the CSV file. Useful when your CSV file has a header row.
+- `--no-verify` - Disable HTTPS certificate verification. Useful for testing against servers with self-signed certificates or in development environments.
 
 ### Examples
 
@@ -60,8 +61,11 @@ load example.csv --no-cache
 # Skip header row in CSV file
 load example.csv --skip-header
 
+# Disable certificate verification (for self-signed certs)
+load example.csv --no-verify
+
 # Combine with other options
-load example.csv --no-cache --host localhost:3000 --accelerator 10
+load example.csv --no-cache --host localhost:3000 --accelerator 10 --no-verify
 
 # Test parallel execution
 load example-parallel.csv

@@ -4,7 +4,7 @@ const { createReadStream } = require('fs')
 const { pipeline } = require('stream/promises')
 const { Transform } = require('stream')
 const { createInterface } = require('readline')
-const { request } = require('undici')
+const { request, Agent } = require('undici')
 const { setTimeout } = require('timers/promises')
 const { createHistogram } = require('node:perf_hooks')
 
@@ -65,14 +65,18 @@ function parseCSV (filePath, skipHeader = false) {
   return parseTransform
 }
 
-async function executeRequest (url, timeoutMs = 60000, histogram = null) {
+async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatcher = null) {
   const startTime = process.hrtime.bigint()
   let latencyNs
   try {
-    const { statusCode, body } = await request(url, {
+    const options = {
       method: 'GET',
       signal: AbortSignal.timeout(timeoutMs)
-    })
+    }
+    if (dispatcher) {
+      options.dispatcher = dispatcher
+    }
+    const { statusCode, body } = await request(url, options)
     await body.dump() // Consume the response body to simulate a real client
 
     if (statusCode < 200 || statusCode >= 300) {
@@ -102,7 +106,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null) {
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false) {
+async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false) {
   console.log('Starting load test...')
   if (accelerator !== 1) {
     console.log(`Time acceleration: ${accelerator}x`)
@@ -116,9 +120,20 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (skipHeader) {
     console.log('Skipping first line: enabled')
   }
-  if (accelerator !== 1 || hostRewrite || noCache || skipHeader) {
+  if (noVerify) {
+    console.log('Certificate verification: disabled')
+  }
+  if (accelerator !== 1 || hostRewrite || noCache || skipHeader || noVerify) {
     console.log('')
   }
+
+  const dispatcher = noVerify
+    ? new Agent({
+      connect: {
+        rejectUnauthorized: false
+      }
+    })
+    : null
 
   const histogram = createHistogram()
   const startTime = Date.now()
@@ -141,7 +156,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   const wrappedExecuteRequest = async (url) => {
     inFlightRequests++
     try {
-      const result = await executeRequest(url, timeoutMs, histogram)
+      const result = await executeRequest(url, timeoutMs, histogram, dispatcher)
       if (!result.success) {
         errorCount++
       }
