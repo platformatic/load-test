@@ -13,13 +13,13 @@ npm install
 ### Command Line
 
 ```bash
-load <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache] [--skip-header]
+load <csv-file> [options]
 ```
 
 Or using Node.js directly:
 
 ```bash
-node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache] [--skip-header]
+node cli.js <csv-file> [options]
 ```
 
 ### Options
@@ -27,8 +27,10 @@ node cli.js <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostna
 - `-t, --timeout <ms>` - Total timeout in milliseconds for each request (default: 60000)
 - `-a, --accelerator <n>` - Time acceleration factor (default: 1). Speeds up the delays between request initiations by dividing them by this factor. For example, accelerator=10 makes a 1000ms delay become 100ms. Note: This only affects the timing of when requests are *initiated*, not how long the actual HTTP requests take to complete.
 - `-h, --host <hostname>` - Rewrite the host in all URLs to this value (e.g., `localhost:3000`). Useful for replaying production traffic against a local or staging server. The protocol (http/https) and path are preserved from the original URL.
+- `-r, --reset-connections <n>` - Reset connections every N requests (similar to autocannon's `-D` flag). Forces connection closure and recreation to simulate realistic client behavior and test connection establishment overhead. Useful for testing servers under more realistic conditions.
 - `--no-cache` - Add `cache=false` to the querystring of all URLs to bypass caching. Useful for testing without cache influence.
 - `--skip-header` - Skip the first line of the CSV file. Useful when your CSV file has a header row.
+- `--no-verify` - Disable HTTPS certificate verification. Useful for testing against servers with self-signed certificates or in development environments.
 
 ### Examples
 
@@ -60,8 +62,15 @@ load example.csv --no-cache
 # Skip header row in CSV file
 load example.csv --skip-header
 
+# Disable certificate verification (for self-signed certs)
+load example.csv --no-verify
+
+# Reset connections every 100 requests (like autocannon -D)
+load example.csv --reset-connections 100
+load example.csv -r 100
+
 # Combine with other options
-load example.csv --no-cache --host localhost:3000 --accelerator 10
+load example.csv --no-cache --host localhost:3000 --accelerator 10 --no-verify --reset-connections 100
 
 # Test parallel execution
 load example-parallel.csv

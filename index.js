@@ -4,7 +4,7 @@ const { createReadStream } = require('fs')
 const { pipeline } = require('stream/promises')
 const { Transform } = require('stream')
 const { createInterface } = require('readline')
-const { request } = require('undici')
+const { request, Agent } = require('undici')
 const { setTimeout } = require('timers/promises')
 const { createHistogram } = require('node:perf_hooks')
 
@@ -65,14 +65,18 @@ function parseCSV (filePath, skipHeader = false) {
   return parseTransform
 }
 
-async function executeRequest (url, timeoutMs = 60000, histogram = null) {
+async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatcher = null) {
   const startTime = process.hrtime.bigint()
   let latencyNs
   try {
-    const { statusCode, body } = await request(url, {
+    const options = {
       method: 'GET',
       signal: AbortSignal.timeout(timeoutMs)
-    })
+    }
+    if (dispatcher) {
+      options.dispatcher = dispatcher
+    }
+    const { statusCode, body } = await request(url, options)
     await body.dump() // Consume the response body to simulate a real client
 
     if (statusCode < 200 || statusCode >= 300) {
@@ -102,7 +106,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null) {
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false) {
+async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0) {
   console.log('Starting load test...')
   if (accelerator !== 1) {
     console.log(`Time acceleration: ${accelerator}x`)
@@ -116,9 +120,29 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (skipHeader) {
     console.log('Skipping first line: enabled')
   }
-  if (accelerator !== 1 || hostRewrite || noCache || skipHeader) {
+  if (noVerify) {
+    console.log('Certificate verification: disabled')
+  }
+  if (resetConnections > 0) {
+    console.log(`Connection reset: every ${resetConnections} requests`)
+  }
+  if (accelerator !== 1 || hostRewrite || noCache || skipHeader || noVerify || resetConnections > 0) {
     console.log('')
   }
+
+  const createDispatcher = () => {
+    if (resetConnections > 0 || noVerify) {
+      return new Agent({
+        connect: {
+          rejectUnauthorized: !noVerify
+        }
+      })
+    }
+    return null
+  }
+
+  let dispatcher = createDispatcher()
+  let requestCounter = 0
 
   const histogram = createHistogram()
   const startTime = Date.now()
@@ -139,12 +163,29 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   }
 
   const wrappedExecuteRequest = async (url) => {
+    // Capture current dispatcher reference for this request
+    const requestDispatcher = dispatcher
+
     inFlightRequests++
     try {
-      const result = await executeRequest(url, timeoutMs, histogram)
+      const result = await executeRequest(url, timeoutMs, histogram, requestDispatcher)
       if (!result.success) {
         errorCount++
       }
+
+      if (resetConnections > 0) {
+        requestCounter++
+        if (requestCounter >= resetConnections) {
+          // Close old dispatcher gracefully (waits for in-flight requests)
+          if (dispatcher) {
+            dispatcher.close()  // Don't await - let it drain in background
+          }
+          // Create new dispatcher for subsequent requests
+          dispatcher = createDispatcher()
+          requestCounter = 0
+        }
+      }
+
       return result
     } finally {
       inFlightRequests--
@@ -193,6 +234,11 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   checkCompletion()
 
   await completionPromise
+
+  // Close current dispatcher
+  if (dispatcher) {
+    await dispatcher.close()
+  }
 
   console.log('=== Latency Statistics ===')
   console.log(`Total requests: ${histogram.count}`)
