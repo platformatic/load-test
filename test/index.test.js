@@ -385,3 +385,55 @@ test('loadTest - skips header line with skipHeader flag', async (t) => {
 
   await rm(tmpDir, { recursive: true })
 })
+
+test('loadTest - disables certificate verification with noVerify flag', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return 'ok'
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-no-verify.csv')
+
+  const now = Date.now()
+  await writeFile(csvPath, `${now},${url}`)
+
+  await loadTest(csvPath, 60000, 1, null, false, false, true)
+
+  await rm(tmpDir, { recursive: true })
+})
+
+test('loadTest - resets connections with resetConnections flag', async (t) => {
+  const app = fastify()
+  let requestCount = 0
+
+  app.get('/', async (request, reply) => {
+    requestCount++
+    return 'ok'
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-reset-connections.csv')
+
+  const now = Date.now()
+  await writeFile(csvPath, `${now},${url}\n${now + 50},${url}\n${now + 100},${url}\n${now + 150},${url}\n${now + 200},${url}`)
+
+  await loadTest(csvPath, 60000, 1, null, false, false, false, 2)
+
+  assert.strictEqual(requestCount, 5)
+
+  await rm(tmpDir, { recursive: true })
+})

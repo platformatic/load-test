@@ -27,6 +27,14 @@ const { values, positionals } = parseArgs({
     'skip-header': {
       type: 'boolean',
       default: false
+    },
+    'no-verify': {
+      type: 'boolean',
+      default: false
+    },
+    'reset-connections': {
+      type: 'string',
+      short: 'r'
     }
   },
   allowPositionals: true,
@@ -39,26 +47,32 @@ const accelerator = parseFloat(values.accelerator)
 const hostRewrite = values.host
 const noCache = values['no-cache']
 const skipHeader = values['skip-header']
+const noVerify = values['no-verify']
+const resetConnections = values['reset-connections'] ? parseInt(values['reset-connections'], 10) : 0
 
 if (!csvPath) {
   console.error('Error: CSV file path is required')
   console.error('')
-  console.error('Usage: load <csv-file> [--timeout <ms>] [--accelerator <factor>] [--host <hostname>] [--no-cache] [--skip-header]')
+  console.error('Usage: load <csv-file> [options]')
   console.error('')
   console.error('Options:')
-  console.error('  -t, --timeout <ms>      Timeout in milliseconds for each request (default: 60000)')
-  console.error('  -a, --accelerator <n>   Time acceleration factor (default: 1, e.g., 2 = 2x speed, 10 = 10x speed)')
-  console.error('  -h, --host <hostname>   Rewrite the host in all URLs to this value (e.g., localhost:3000)')
-  console.error('  --no-cache              Add cache=false to the querystring of all URLs')
-  console.error('  --skip-header           Skip the first line of the CSV file (useful for headers)')
+  console.error('  -t, --timeout <ms>           Timeout in milliseconds for each request (default: 60000)')
+  console.error('  -a, --accelerator <n>        Time acceleration factor (default: 1, e.g., 2 = 2x speed, 10 = 10x speed)')
+  console.error('  -h, --host <hostname>        Rewrite the host in all URLs to this value (e.g., localhost:3000)')
+  console.error('  -r, --reset-connections <n>  Reset connections every N requests (like autocannon -D)')
+  console.error('  --no-cache                   Add cache=false to the querystring of all URLs')
+  console.error('  --skip-header                Skip the first line of the CSV file (useful for headers)')
+  console.error('  --no-verify                  Disable HTTPS certificate verification (useful for self-signed certs)')
   console.error('')
   console.error('Example:')
   console.error('  load requests.csv')
   console.error('  load requests.csv --timeout 120000')
   console.error('  load requests.csv --accelerator 10')
   console.error('  load requests.csv --host localhost:3000')
+  console.error('  load requests.csv --reset-connections 100')
   console.error('  load requests.csv --no-cache')
   console.error('  load requests.csv --skip-header')
+  console.error('  load requests.csv --no-verify')
   console.error('')
   console.error('CSV Format:')
   console.error('  unix_timestamp_in_milliseconds,url')
@@ -82,7 +96,12 @@ if (accelerator <= 0) {
   process.exit(1)
 }
 
-loadTest(csvPath, timeout, accelerator, hostRewrite, noCache, skipHeader).catch((err) => {
+if (resetConnections && (isNaN(resetConnections) || resetConnections <= 0)) {
+  console.error('Error: reset-connections must be a positive number')
+  process.exit(1)
+}
+
+loadTest(csvPath, timeout, accelerator, hostRewrite, noCache, skipHeader, noVerify, resetConnections).catch((err) => {
   console.error('Fatal error:', err.message)
   process.exit(1)
 })
