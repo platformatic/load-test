@@ -82,27 +82,38 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     if (statusCode < 200 || statusCode >= 300) {
       const err = new Error(`HTTP ${statusCode}`)
       err.code = `HTTP_${statusCode}`
+      err.statusCode = statusCode
       throw err
+    }
+
+    const endTime = process.hrtime.bigint()
+    latencyNs = endTime - startTime
+
+    // Only record successful requests in histogram
+    if (histogram) {
+      histogram.record(latencyNs)
     }
 
     console.log(`✓ ${url} - ${statusCode}`)
     return { success: true, url, statusCode, latency: Number(latencyNs) }
   } catch (err) {
+    const endTime = process.hrtime.bigint()
+    latencyNs = endTime - startTime
+
     console.error(`✗ ERROR: ${url}`)
+    if (err.statusCode) {
+      console.error(`  Status Code: ${err.statusCode}`)
+    }
     if (err.code) {
-      console.error(`  Code: ${err.code}`)
+      console.error(`  Error Code: ${err.code}`)
     }
     if (err.message) {
       console.error(`  Message: ${err.message}`)
     }
-    return { success: false, url, error: err, latency: Number(latencyNs) }
-  } finally {
-    const endTime = process.hrtime.bigint()
-    latencyNs = endTime - startTime
-
-    if (histogram) {
-      histogram.record(latencyNs)
+    if (err.cause) {
+      console.error(`  Cause: ${err.cause.message || err.cause}`)
     }
+    return { success: false, url, error: err, latency: Number(latencyNs) }
   }
 }
 
