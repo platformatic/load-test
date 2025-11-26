@@ -94,13 +94,13 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
       histogram.record(latencyNs)
     }
 
-    console.log(`✓ ${url} - ${statusCode}`)
+    console.log(`✓ [${new Date().toISOString()}] ${url} - ${statusCode} - ${(Number(latencyNs) / 1_000_000).toFixed(2)} ms`)
     return { success: true, url, statusCode, latency: Number(latencyNs) }
   } catch (err) {
     const endTime = process.hrtime.bigint()
     latencyNs = endTime - startTime
 
-    console.error(`✗ ERROR: ${url}`)
+    console.error(`✗ [${new Date().toISOString()}] ERROR: ${url} - ${(Number(latencyNs) / 1_000_000).toFixed(2)} ms`)
     if (err.statusCode) {
       console.error(`  Status Code: ${err.statusCode}`)
     }
@@ -252,7 +252,9 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   }
 
   const totalRequests = histogram.count + errorCount
+  const elapsedTime = (Date.now() - startTime) / 1000
   console.log('=== Latency Statistics ===')
+  console.log(`Total time: ${elapsedTime.toFixed(2)} s`)
   console.log(`Total requests: ${totalRequests}`)
   console.log(`Successful: ${histogram.count}`)
   console.log(`Errors: ${errorCount}`)
