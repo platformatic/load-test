@@ -117,7 +117,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0) {
+async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0, limit = 0) {
   console.log('Starting load test...')
   if (accelerator !== 1) {
     console.log(`Time acceleration: ${accelerator}x`)
@@ -137,7 +137,10 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (resetConnections > 0) {
     console.log(`Connection reset: every ${resetConnections} requests`)
   }
-  if (accelerator !== 1 || hostRewrite || noCache || skipHeader || noVerify || resetConnections > 0) {
+  if (limit > 0) {
+    console.log(`Limit: first ${limit} requests`)
+  }
+  if (accelerator !== 1 || hostRewrite || noCache || skipHeader || noVerify || resetConnections > 0 || limit > 0) {
     console.log('')
   }
 
@@ -204,7 +207,12 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     }
   }
 
+  let requestsInitiated = 0
   for await (const req of parseCSV(csvPath, skipHeader)) {
+    if (limit > 0 && requestsInitiated >= limit) {
+      break
+    }
+
     if (firstRequestTime === null) {
       firstRequestTime = req.time
     }
@@ -232,6 +240,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     }
 
     wrappedExecuteRequest(url)
+    requestsInitiated++
   }
 
   if (firstRequestTime === null) {
