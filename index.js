@@ -251,9 +251,10 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     await dispatcher.close()
   }
 
+  const totalRequests = histogram.count + errorCount
   console.log('=== Latency Statistics ===')
-  console.log(`Total requests: ${histogram.count}`)
-  console.log(`Successful: ${histogram.count - errorCount}`)
+  console.log(`Total requests: ${totalRequests}`)
+  console.log(`Successful: ${histogram.count}`)
   console.log(`Errors: ${errorCount}`)
   console.log(`Min: ${(histogram.min / 1_000_000).toFixed(2)} ms`)
   console.log(`Max: ${(histogram.max / 1_000_000).toFixed(2)} ms`)
