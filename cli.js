@@ -35,6 +35,10 @@ const { values, positionals } = parseArgs({
     'reset-connections': {
       type: 'string',
       short: 'r'
+    },
+    limit: {
+      type: 'string',
+      short: 'l'
     }
   },
   allowPositionals: true,
@@ -49,6 +53,7 @@ const noCache = values['no-cache']
 const skipHeader = values['skip-header']
 const noVerify = values['no-verify']
 const resetConnections = values['reset-connections'] ? parseInt(values['reset-connections'], 10) : 0
+const limit = values.limit ? parseInt(values.limit, 10) : 0
 
 if (!csvPath) {
   console.error('Error: CSV file path is required')
@@ -60,6 +65,7 @@ if (!csvPath) {
   console.error('  -a, --accelerator <n>        Time acceleration factor (default: 1, e.g., 2 = 2x speed, 10 = 10x speed)')
   console.error('  -h, --host <hostname>        Rewrite the host in all URLs to this value (e.g., localhost:3000)')
   console.error('  -r, --reset-connections <n>  Reset connections every N requests (like autocannon -D)')
+  console.error('  -l, --limit <n>              Execute only the first N requests from the CSV')
   console.error('  --no-cache                   Add cache=false to the querystring of all URLs')
   console.error('  --skip-header                Skip the first line of the CSV file (useful for headers)')
   console.error('  --no-verify                  Disable HTTPS certificate verification (useful for self-signed certs)')
@@ -70,6 +76,7 @@ if (!csvPath) {
   console.error('  load requests.csv --accelerator 10')
   console.error('  load requests.csv --host localhost:3000')
   console.error('  load requests.csv --reset-connections 100')
+  console.error('  load requests.csv --limit 100')
   console.error('  load requests.csv --no-cache')
   console.error('  load requests.csv --skip-header')
   console.error('  load requests.csv --no-verify')
@@ -101,7 +108,12 @@ if (resetConnections && (isNaN(resetConnections) || resetConnections <= 0)) {
   process.exit(1)
 }
 
-loadTest(csvPath, timeout, accelerator, hostRewrite, noCache, skipHeader, noVerify, resetConnections).catch((err) => {
+if (limit && (isNaN(limit) || limit <= 0)) {
+  console.error('Error: limit must be a positive number')
+  process.exit(1)
+}
+
+loadTest(csvPath, timeout, accelerator, hostRewrite, noCache, skipHeader, noVerify, resetConnections, limit).catch((err) => {
   console.error('Fatal error:', err.message)
   process.exit(1)
 })

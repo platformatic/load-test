@@ -82,31 +82,42 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     if (statusCode < 200 || statusCode >= 300) {
       const err = new Error(`HTTP ${statusCode}`)
       err.code = `HTTP_${statusCode}`
+      err.statusCode = statusCode
       throw err
     }
 
-    console.log(`✓ ${url} - ${statusCode}`)
+    const endTime = process.hrtime.bigint()
+    latencyNs = endTime - startTime
+
+    // Only record successful requests in histogram
+    if (histogram) {
+      histogram.record(latencyNs)
+    }
+
+    console.log(`✓ [${new Date().toISOString()}] ${url} - ${statusCode} - ${(Number(latencyNs) / 1_000_000).toFixed(2)} ms`)
     return { success: true, url, statusCode, latency: Number(latencyNs) }
   } catch (err) {
-    console.error(`✗ ERROR: ${url}`)
+    const endTime = process.hrtime.bigint()
+    latencyNs = endTime - startTime
+
+    console.error(`✗ [${new Date().toISOString()}] ERROR: ${url} - ${(Number(latencyNs) / 1_000_000).toFixed(2)} ms`)
+    if (err.statusCode) {
+      console.error(`  Status Code: ${err.statusCode}`)
+    }
     if (err.code) {
-      console.error(`  Code: ${err.code}`)
+      console.error(`  Error Code: ${err.code}`)
     }
     if (err.message) {
       console.error(`  Message: ${err.message}`)
     }
-    return { success: false, url, error: err, latency: Number(latencyNs) }
-  } finally {
-    const endTime = process.hrtime.bigint()
-    latencyNs = endTime - startTime
-
-    if (histogram) {
-      histogram.record(latencyNs)
+    if (err.cause) {
+      console.error(`  Cause: ${err.cause.message || err.cause}`)
     }
+    return { success: false, url, error: err, latency: Number(latencyNs) }
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0) {
+async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0, limit = 0) {
   console.log('Starting load test...')
   if (accelerator !== 1) {
     console.log(`Time acceleration: ${accelerator}x`)
@@ -126,7 +137,10 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (resetConnections > 0) {
     console.log(`Connection reset: every ${resetConnections} requests`)
   }
-  if (accelerator !== 1 || hostRewrite || noCache || skipHeader || noVerify || resetConnections > 0) {
+  if (limit > 0) {
+    console.log(`Limit: first ${limit} requests`)
+  }
+  if (accelerator !== 1 || hostRewrite || noCache || skipHeader || noVerify || resetConnections > 0 || limit > 0) {
     console.log('')
   }
 
@@ -193,7 +207,12 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     }
   }
 
+  let requestsInitiated = 0
   for await (const req of parseCSV(csvPath, skipHeader)) {
+    if (limit > 0 && requestsInitiated >= limit) {
+      break
+    }
+
     if (firstRequestTime === null) {
       firstRequestTime = req.time
     }
@@ -221,6 +240,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     }
 
     wrappedExecuteRequest(url)
+    requestsInitiated++
   }
 
   if (firstRequestTime === null) {
@@ -240,9 +260,12 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     await dispatcher.close()
   }
 
+  const totalRequests = histogram.count + errorCount
+  const elapsedTime = (Date.now() - startTime) / 1000
   console.log('=== Latency Statistics ===')
-  console.log(`Total requests: ${histogram.count}`)
-  console.log(`Successful: ${histogram.count - errorCount}`)
+  console.log(`Total time: ${elapsedTime.toFixed(2)} s`)
+  console.log(`Total requests: ${totalRequests}`)
+  console.log(`Successful: ${histogram.count}`)
   console.log(`Errors: ${errorCount}`)
   console.log(`Min: ${(histogram.min / 1_000_000).toFixed(2)} ms`)
   console.log(`Max: ${(histogram.max / 1_000_000).toFixed(2)} ms`)
