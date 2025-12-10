@@ -28,9 +28,11 @@ node cli.js <csv-file> [options]
 - `-a, --accelerator <n>` - Time acceleration factor (default: 1). Speeds up the delays between request initiations by dividing them by this factor. For example, accelerator=10 makes a 1000ms delay become 100ms. Note: This only affects the timing of when requests are *initiated*, not how long the actual HTTP requests take to complete.
 - `-h, --host <hostname>` - Rewrite the host in all URLs to this value (e.g., `localhost:3000`). Useful for replaying production traffic against a local or staging server. The protocol (http/https) and path are preserved from the original URL.
 - `-r, --reset-connections <n>` - Reset connections every N requests (similar to autocannon's `-D` flag). Forces connection closure and recreation to simulate realistic client behavior and test connection establishment overhead. Useful for testing servers under more realistic conditions.
+- `-l, --limit <n>` - Execute only the first N requests from the CSV file. Useful for quick smoke tests or debugging.
 - `--no-cache` - Add `cache=false` to the querystring of all URLs to bypass caching. Useful for testing without cache influence.
 - `--skip-header` - Skip the first line of the CSV file. Useful when your CSV file has a header row.
 - `--no-verify` - Disable HTTPS certificate verification. Useful for testing against servers with self-signed certificates or in development environments.
+- `--count-fallback` - Count responses that contain `"fallback": true` in their JSON body. Uses fast regex matching instead of full JSON parsing for minimal overhead. Displays fallback count and percentage in the final statistics. Also extracts and logs `metadata.error` if present in the response.
 
 ### Examples
 
@@ -68,6 +70,13 @@ load example.csv --no-verify
 # Reset connections every 100 requests (like autocannon -D)
 load example.csv --reset-connections 100
 load example.csv -r 100
+
+# Execute only the first 100 requests
+load example.csv --limit 100
+load example.csv -l 100
+
+# Count fallback responses in statistics
+load example.csv --count-fallback
 
 # Combine with other options
 load example.csv --no-cache --host localhost:3000 --accelerator 10 --no-verify --reset-connections 100
@@ -143,6 +152,7 @@ Starting load test...
 Waiting for all requests to complete...
 
 === Latency Statistics ===
+Total time: 3.50 s
 Total requests: 4
 Successful: 4
 Errors: 0
@@ -155,6 +165,30 @@ P75: 156.78 ms
 P90: 201.23 ms
 P99: 234.56 ms
 ```
+
+Example with `--count-fallback`:
+
+```bash
+✓ [2025-12-10T11:40:00.605Z] https://api.example.com/search - 200 - 45.32 ms
+✓ [2025-12-10T11:40:00.705Z] https://api.example.com/search - 200 - 52.18 ms [metadata.error: timeout from upstream]
+
+=== Latency Statistics ===
+Total time: 300.00 s
+Total requests: 20000
+Successful: 19985
+Errors: 15
+Fallback: 127 (0.6%)
+Min: 12.34 ms
+Max: 567.89 ms
+Mean: 45.67 ms
+Stddev: 23.45 ms
+P50: 42.10 ms
+P75: 56.78 ms
+P90: 78.90 ms
+P99: 123.45 ms
+```
+
+When `metadata.error` is present in the JSON response, it's displayed in the log output for that request.
 
 Example with errors:
 
