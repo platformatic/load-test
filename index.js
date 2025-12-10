@@ -65,9 +65,10 @@ function parseCSV (filePath, skipHeader = false) {
   return parseTransform
 }
 
-async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatcher = null) {
+async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatcher = null, countFallback = false) {
   const startTime = process.hrtime.bigint()
   let latencyNs
+  let fallback = null
   try {
     const options = {
       method: 'GET',
@@ -77,7 +78,13 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
       options.dispatcher = dispatcher
     }
     const { statusCode, body } = await request(url, options)
-    await body.dump() // Consume the response body to simulate a real client
+
+    if (countFallback) {
+      const text = await body.text()
+      fallback = /"fallback"\s*:\s*true/.test(text)
+    } else {
+      await body.dump() // Consume the response body to simulate a real client
+    }
 
     if (statusCode < 200 || statusCode >= 300) {
       const err = new Error(`HTTP ${statusCode}`)
@@ -95,7 +102,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     }
 
     console.log(`✓ [${new Date().toISOString()}] ${url} - ${statusCode} - ${(Number(latencyNs) / 1_000_000).toFixed(2)} ms`)
-    return { success: true, url, statusCode, latency: Number(latencyNs) }
+    return { success: true, url, statusCode, latency: Number(latencyNs), fallback }
   } catch (err) {
     const endTime = process.hrtime.bigint()
     latencyNs = endTime - startTime
@@ -113,11 +120,11 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     if (err.cause) {
       console.error(`  Cause: ${err.cause.message || err.cause}`)
     }
-    return { success: false, url, error: err, latency: Number(latencyNs) }
+    return { success: false, url, error: err, latency: Number(latencyNs), fallback }
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0, limit = 0) {
+async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0, limit = 0, countFallback = false) {
   console.log('Starting load test...')
   if (accelerator !== 1) {
     console.log(`Time acceleration: ${accelerator}x`)
@@ -140,7 +147,10 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (limit > 0) {
     console.log(`Limit: first ${limit} requests`)
   }
-  if (accelerator !== 1 || hostRewrite || noCache || skipHeader || noVerify || resetConnections > 0 || limit > 0) {
+  if (countFallback) {
+    console.log('Count fallback: enabled')
+  }
+  if (accelerator !== 1 || hostRewrite || noCache || skipHeader || noVerify || resetConnections > 0 || limit > 0 || countFallback) {
     console.log('')
   }
 
@@ -165,6 +175,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   let allRequestsInitiated = false
   let resolveCompletion
   let errorCount = 0
+  let fallbackCount = 0
 
   const completionPromise = new Promise((resolve) => {
     resolveCompletion = resolve
@@ -182,9 +193,12 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
 
     inFlightRequests++
     try {
-      const result = await executeRequest(url, timeoutMs, histogram, requestDispatcher)
+      const result = await executeRequest(url, timeoutMs, histogram, requestDispatcher, countFallback)
       if (!result.success) {
         errorCount++
+      }
+      if (result.fallback === true) {
+        fallbackCount++
       }
 
       if (resetConnections > 0) {
@@ -192,7 +206,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
         if (requestCounter >= resetConnections) {
           // Close old dispatcher gracefully (waits for in-flight requests)
           if (dispatcher) {
-            dispatcher.close()  // Don't await - let it drain in background
+            dispatcher.close() // Don't await - let it drain in background
           }
           // Create new dispatcher for subsequent requests
           dispatcher = createDispatcher()
@@ -267,6 +281,10 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   console.log(`Total requests: ${totalRequests}`)
   console.log(`Successful: ${histogram.count}`)
   console.log(`Errors: ${errorCount}`)
+  if (countFallback) {
+    const fallbackPct = totalRequests > 0 ? ((fallbackCount / totalRequests) * 100).toFixed(1) : '0.0'
+    console.log(`Fallback: ${fallbackCount} (${fallbackPct}%)`)
+  }
   console.log(`Min: ${(histogram.min / 1_000_000).toFixed(2)} ms`)
   console.log(`Max: ${(histogram.max / 1_000_000).toFixed(2)} ms`)
   console.log(`Mean: ${(histogram.mean / 1_000_000).toFixed(2)} ms`)

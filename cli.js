@@ -39,6 +39,10 @@ const { values, positionals } = parseArgs({
     limit: {
       type: 'string',
       short: 'l'
+    },
+    'count-fallback': {
+      type: 'boolean',
+      default: false
     }
   },
   allowPositionals: true,
@@ -54,6 +58,7 @@ const skipHeader = values['skip-header']
 const noVerify = values['no-verify']
 const resetConnections = values['reset-connections'] ? parseInt(values['reset-connections'], 10) : 0
 const limit = values.limit ? parseInt(values.limit, 10) : 0
+const countFallback = values['count-fallback']
 
 if (!csvPath) {
   console.error('Error: CSV file path is required')
@@ -69,6 +74,7 @@ if (!csvPath) {
   console.error('  --no-cache                   Add cache=false to the querystring of all URLs')
   console.error('  --skip-header                Skip the first line of the CSV file (useful for headers)')
   console.error('  --no-verify                  Disable HTTPS certificate verification (useful for self-signed certs)')
+  console.error('  --count-fallback             Count responses with "fallback": true in metadata')
   console.error('')
   console.error('Example:')
   console.error('  load requests.csv')
@@ -113,7 +119,7 @@ if (limit && (isNaN(limit) || limit <= 0)) {
   process.exit(1)
 }
 
-loadTest(csvPath, timeout, accelerator, hostRewrite, noCache, skipHeader, noVerify, resetConnections, limit).catch((err) => {
+loadTest(csvPath, timeout, accelerator, hostRewrite, noCache, skipHeader, noVerify, resetConnections, limit, countFallback).catch((err) => {
   console.error('Fatal error:', err.message)
   process.exit(1)
 })

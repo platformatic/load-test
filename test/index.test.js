@@ -1,13 +1,12 @@
 'use strict'
 
-const { test, after } = require('node:test')
+const { test } = require('node:test')
 const assert = require('node:assert')
 const { writeFile, mkdir, rm } = require('fs/promises')
 const { setTimeout } = require('timers/promises')
 const { join } = require('path')
 const { parseCSV, executeRequest, loadTest } = require('../index.js')
 const fastify = require('fastify')
-
 
 test('parseCSV - parses valid CSV file', async (t) => {
   const tmpDir = join(__dirname, 'tmp')
@@ -58,6 +57,7 @@ test('parseCSV - throws on invalid format', async (t) => {
 
   await assert.rejects(
     async () => {
+      /* eslint-disable-next-line no-unused-vars */
       for await (const req of parseCSV(csvPath)) {
         // Should throw before yielding
       }
@@ -77,6 +77,7 @@ test('parseCSV - throws on invalid time', async (t) => {
 
   await assert.rejects(
     async () => {
+      /* eslint-disable-next-line no-unused-vars */
       for await (const req of parseCSV(csvPath)) {
         // Should throw before yielding
       }
@@ -96,6 +97,7 @@ test('parseCSV - throws on empty URL', async (t) => {
 
   await assert.rejects(
     async () => {
+      /* eslint-disable-next-line no-unused-vars */
       for await (const req of parseCSV(csvPath)) {
         // Should throw before yielding
       }
@@ -462,6 +464,42 @@ test('loadTest - limits requests with limit flag', async (t) => {
   await loadTest(csvPath, 60000, 1, null, false, false, false, 0, 3)
 
   assert.strictEqual(requestCount, 3)
+
+  await rm(tmpDir, { recursive: true })
+})
+
+test('loadTest - counts fallback responses with countFallback flag', async (t) => {
+  const app = fastify()
+  let requestCount = 0
+
+  app.get('/', async (request, reply) => {
+    requestCount++
+    // Alternate between fallback true and false
+    const fallback = requestCount % 2 === 1
+    return {
+      metadata: {
+        fallback,
+        requestId: `req-${requestCount}`
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-count-fallback.csv')
+
+  const now = Date.now()
+  await writeFile(csvPath, `${now},${url}\n${now + 50},${url}\n${now + 100},${url}\n${now + 150},${url}`)
+
+  await loadTest(csvPath, 60000, 1, null, false, false, false, 0, 0, true)
+
+  assert.strictEqual(requestCount, 4)
 
   await rm(tmpDir, { recursive: true })
 })
