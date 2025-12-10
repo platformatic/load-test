@@ -69,6 +69,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
   const startTime = process.hrtime.bigint()
   let latencyNs
   let fallback = null
+  let metadataError = null
   try {
     const options = {
       method: 'GET',
@@ -82,6 +83,11 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     if (countFallback) {
       const text = await body.text()
       fallback = /"fallback"\s*:\s*true/.test(text)
+      // Extract metadata.error if present
+      const errorMatch = text.match(/"metadata"\s*:\s*\{[^}]*"error"\s*:\s*"([^"]*)"/)
+      if (errorMatch) {
+        metadataError = errorMatch[1]
+      }
     } else {
       await body.dump() // Consume the response body to simulate a real client
     }
@@ -101,8 +107,12 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
       histogram.record(latencyNs)
     }
 
-    console.log(`✓ [${new Date().toISOString()}] ${url} - ${statusCode} - ${(Number(latencyNs) / 1_000_000).toFixed(2)} ms`)
-    return { success: true, url, statusCode, latency: Number(latencyNs), fallback }
+    let logMsg = `✓ [${new Date().toISOString()}] ${url} - ${statusCode} - ${(Number(latencyNs) / 1_000_000).toFixed(2)} ms`
+    if (metadataError) {
+      logMsg += ` [metadata.error: ${metadataError}]`
+    }
+    console.log(logMsg)
+    return { success: true, url, statusCode, latency: Number(latencyNs), fallback, metadataError }
   } catch (err) {
     const endTime = process.hrtime.bigint()
     latencyNs = endTime - startTime
@@ -120,7 +130,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     if (err.cause) {
       console.error(`  Cause: ${err.cause.message || err.cause}`)
     }
-    return { success: false, url, error: err, latency: Number(latencyNs), fallback }
+    return { success: false, url, error: err, latency: Number(latencyNs), fallback, metadataError }
   }
 }
 

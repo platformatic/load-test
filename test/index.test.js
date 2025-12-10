@@ -503,3 +503,52 @@ test('loadTest - counts fallback responses with countFallback flag', async (t) =
 
   await rm(tmpDir, { recursive: true })
 })
+
+test('executeRequest - extracts metadata.error when countFallback is enabled', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return {
+      metadata: {
+        fallback: false,
+        error: 'Something went wrong',
+        requestId: 'req-123'
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+  const result = await executeRequest(url, 60000, null, null, true)
+
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.fallback, false)
+  assert.strictEqual(result.metadataError, 'Something went wrong')
+})
+
+test('executeRequest - metadataError is null when not present', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return {
+      metadata: {
+        fallback: true,
+        requestId: 'req-456'
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+  const result = await executeRequest(url, 60000, null, null, true)
+
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.fallback, true)
+  assert.strictEqual(result.metadataError, null)
+})
