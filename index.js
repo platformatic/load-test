@@ -177,8 +177,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
 
   let dispatcher = createDispatcher()
   let requestCounter = 0
-
-  const histogram = createHistogram()
+  const histogram = createHistogram({ figures: 5, lowest: 1, highest: 10_000 })
   const startTime = Date.now()
   let firstRequestTime = null
   let inFlightRequests = 0
