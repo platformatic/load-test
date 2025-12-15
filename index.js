@@ -67,7 +67,7 @@ function parseCSV (filePath, skipHeader = false) {
 
 async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatcher = null, countFallback = false) {
   const startTime = process.hrtime.bigint()
-  let latencyNs
+  let latencyMs
   let fallback = null
   let metadataError = null
   try {
@@ -100,24 +100,24 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     }
 
     const endTime = process.hrtime.bigint()
-    latencyNs = endTime - startTime
+    latencyMs = (endTime - startTime) / BigInt(1_000_000)
 
     // Only record successful requests in histogram
     if (histogram) {
-      histogram.record(latencyNs)
+      histogram.record(latencyMs)
     }
 
-    let logMsg = `✓ [${new Date().toISOString()}] ${url} - ${statusCode} - ${(Number(latencyNs) / 1_000_000).toFixed(2)} ms`
+    let logMsg = `✓ [${new Date().toISOString()}] ${url} - ${statusCode} - ${(Number(latencyMs)).toFixed(2)} ms`
     if (metadataError) {
       logMsg += ` [metadata.error: ${metadataError}]`
     }
     console.log(logMsg)
-    return { success: true, url, statusCode, latency: Number(latencyNs), fallback, metadataError }
+    return { success: true, url, statusCode, latency: Number(latencyMs), fallback, metadataError }
   } catch (err) {
     const endTime = process.hrtime.bigint()
-    latencyNs = endTime - startTime
+    latencyMs = (endTime - startTime) / BigInt(1_000_000)
 
-    console.error(`✗ [${new Date().toISOString()}] ERROR: ${url} - ${(Number(latencyNs) / 1_000_000).toFixed(2)} ms`)
+    console.error(`✗ [${new Date().toISOString()}] ERROR: ${url} - ${(Number(latencyMs)).toFixed(2)} ms`)
     if (err.statusCode) {
       console.error(`  Status Code: ${err.statusCode}`)
     }
@@ -130,7 +130,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     if (err.cause) {
       console.error(`  Cause: ${err.cause.message || err.cause}`)
     }
-    return { success: false, url, error: err, latency: Number(latencyNs), fallback, metadataError }
+    return { success: false, url, error: err, latency: Number(latencyMs), fallback, metadataError }
   }
 }
 
@@ -177,7 +177,11 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
 
   let dispatcher = createDispatcher()
   let requestCounter = 0
-  const histogram = createHistogram({ figures: 5, lowest: 1, highest: 10_000 })
+  const histogram = createHistogram({
+    figures: 5,
+    lowest: 1,
+    highest: 60_000 // 10 seconds in milliseconds
+  })
   const startTime = Date.now()
   let firstRequestTime = null
   let inFlightRequests = 0
@@ -294,14 +298,14 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     const fallbackPct = totalRequests > 0 ? ((fallbackCount / totalRequests) * 100).toFixed(1) : '0.0'
     console.log(`Fallback: ${fallbackCount} (${fallbackPct}%)`)
   }
-  console.log(`Min: ${(histogram.min / 1_000_000).toFixed(2)} ms`)
-  console.log(`Max: ${(histogram.max / 1_000_000).toFixed(2)} ms`)
-  console.log(`Mean: ${(histogram.mean / 1_000_000).toFixed(2)} ms`)
-  console.log(`Stddev: ${(histogram.stddev / 1_000_000).toFixed(2)} ms`)
-  console.log(`P50: ${(histogram.percentile(50) / 1_000_000).toFixed(2)} ms`)
-  console.log(`P75: ${(histogram.percentile(75) / 1_000_000).toFixed(2)} ms`)
-  console.log(`P90: ${(histogram.percentile(90) / 1_000_000).toFixed(2)} ms`)
-  console.log(`P99: ${(histogram.percentile(99) / 1_000_000).toFixed(2)} ms`)
+  console.log(`Min: ${(histogram.min).toFixed(2)} ms`)
+  console.log(`Max: ${(histogram.max).toFixed(2)} ms`)
+  console.log(`Mean: ${(histogram.mean).toFixed(2)} ms`)
+  console.log(`Stddev: ${(histogram.stddev).toFixed(2)} ms`)
+  console.log(`P50: ${(histogram.percentile(50)).toFixed(2)} ms`)
+  console.log(`P75: ${(histogram.percentile(75)).toFixed(2)} ms`)
+  console.log(`P90: ${(histogram.percentile(90)).toFixed(2)} ms`)
+  console.log(`P99: ${(histogram.percentile(99)).toFixed(2)} ms`)
 }
 
 module.exports = { loadTest, parseCSV, executeRequest }
