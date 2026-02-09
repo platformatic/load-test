@@ -587,6 +587,77 @@ test('executeRequest - cached is false when metadata.cached is not true', async 
   assert.strictEqual(result.cached, false)
 })
 
+test('executeRequest - logs cacheKey when cache is true and response is not cached', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return {
+      metadata: {
+        cached: false,
+        cacheKey: 'user:123:profile'
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+  const result = await executeRequest(url, 60000, null, null, false, true)
+
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.cached, false)
+  assert.strictEqual(result.cacheKey, 'user:123:profile')
+})
+
+test('executeRequest - does not extract cacheKey when response is cached', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return {
+      metadata: {
+        cached: true,
+        cacheKey: 'user:123:profile'
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+  const result = await executeRequest(url, 60000, null, null, false, true)
+
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.cached, true)
+  assert.strictEqual(result.cacheKey, null)
+})
+
+test('executeRequest - cacheKey is null when not present and response is not cached', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return {
+      metadata: {
+        cached: false
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+  const result = await executeRequest(url, 60000, null, null, false, true)
+
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.cached, false)
+  assert.strictEqual(result.cacheKey, null)
+})
+
 test('executeRequest - extracts metadata.error when countFallback is enabled', async (t) => {
   const app = fastify()
 

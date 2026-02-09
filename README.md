@@ -30,7 +30,7 @@ node cli.js <csv-file> [options]
 - `-r, --reset-connections <n>` - Reset connections every N requests (similar to autocannon's `-D` flag). Forces connection closure and recreation to simulate realistic client behavior and test connection establishment overhead. Useful for testing servers under more realistic conditions.
 - `-l, --limit <n>` - Execute only the first N requests from the CSV file. Useful for quick smoke tests or debugging.
 - `--no-cache` - Add `cache=false` to the querystring of all URLs to bypass caching. Useful for testing without cache influence.
-- `--cache` - Add `cache=true` to the querystring of all URLs. The opposite of `--no-cache`, useful for explicitly enabling caching on the target server.
+- `--cache` - Add `cache=true` to the querystring of all URLs. The opposite of `--no-cache`, useful for explicitly enabling caching on the target server. When a response is not cached (`metadata.cached` is not `true`), logs the `metadata.cacheKey` if present.
 - `--skip-header` - Skip the first line of the CSV file. Useful when your CSV file has a header row.
 - `--no-verify` - Disable HTTPS certificate verification. Useful for testing against servers with self-signed certificates or in development environments.
 - `--count-fallback` - Count responses that contain `"fallback": true` and/or `"cached": true` in their JSON body. Uses fast regex matching instead of full JSON parsing for minimal overhead. Displays fallback and cached counts with percentages in the final statistics. Also extracts and logs `metadata.error` if present in the response.
@@ -194,6 +194,13 @@ P99: 123.45 ms
 ```
 
 When `metadata.error` is present in the JSON response, it's displayed in the log output for that request.
+
+Example with `--cache` (cache miss with cacheKey):
+
+```bash
+✓ [2025-12-10T11:40:00.605Z] https://api.example.com/search?cache=true - 200 - 45.32 ms [cacheKey not found in cache: user:123:profile]
+✓ [2025-12-10T11:40:00.705Z] https://api.example.com/search?cache=true - 200 - 12.18 ms
+```
 
 Example with errors:
 

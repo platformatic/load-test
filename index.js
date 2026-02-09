@@ -65,11 +65,12 @@ function parseCSV (filePath, skipHeader = false) {
   return parseTransform
 }
 
-async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatcher = null, countFallback = false) {
+async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatcher = null, countFallback = false, cache = false) {
   const startTime = process.hrtime.bigint()
   let latencyMs
   let fallback = null
   let cached = null
+  let cacheKey = null
   let metadataError = null
   try {
     const options = {
@@ -81,14 +82,23 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     }
     const { statusCode, body } = await request(url, options)
 
-    if (countFallback) {
+    if (countFallback || cache) {
       const text = await body.text()
-      fallback = /"fallback"\s*:\s*true/.test(text)
+      if (countFallback) {
+        fallback = /"fallback"\s*:\s*true/.test(text)
+      }
       cached = /"cached"\s*:\s*true/.test(text)
       // Extract metadata.error if present
       const errorMatch = text.match(/"metadata"\s*:\s*\{[^}]*"error"\s*:\s*"([^"]*)"/)
       if (errorMatch) {
         metadataError = errorMatch[1]
+      }
+      // Extract cacheKey when cache is enabled and response is not cached
+      if (cache && !cached) {
+        const cacheKeyMatch = text.match(/"cacheKey"\s*:\s*"([^"]*)"/)
+        if (cacheKeyMatch) {
+          cacheKey = cacheKeyMatch[1]
+        }
       }
     } else {
       await body.dump() // Consume the response body to simulate a real client
@@ -113,8 +123,11 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     if (metadataError) {
       logMsg += ` [metadata.error: ${metadataError}]`
     }
+    if (cacheKey) {
+      logMsg += ` [cacheKey not found in cache: ${cacheKey}]`
+    }
     console.log(logMsg)
-    return { success: true, url, statusCode, latency: Number(latencyMs), fallback, cached, metadataError }
+    return { success: true, url, statusCode, latency: Number(latencyMs), fallback, cached, cacheKey, metadataError }
   } catch (err) {
     const endTime = process.hrtime.bigint()
     latencyMs = (endTime - startTime) / BigInt(1_000_000)
@@ -132,7 +145,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     if (err.cause) {
       console.error(`  Cause: ${err.cause.message || err.cause}`)
     }
-    return { success: false, url, error: err, latency: Number(latencyMs), fallback, cached, metadataError }
+    return { success: false, url, error: err, latency: Number(latencyMs), fallback, cached, cacheKey, metadataError }
   }
 }
 
@@ -212,7 +225,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
 
     inFlightRequests++
     try {
-      const result = await executeRequest(url, timeoutMs, histogram, requestDispatcher, countFallback)
+      const result = await executeRequest(url, timeoutMs, histogram, requestDispatcher, countFallback, cache)
       if (!result.success) {
         errorCount++
       }
