@@ -195,10 +195,10 @@ P99: 123.45 ms
 
 When `metadata.error` is present in the JSON response, it's displayed in the log output for that request.
 
-Example with `--cache` (cache miss with cacheKey):
+Example with `--cache` (showing cacheKey):
 
 ```bash
-✓ [2025-12-10T11:40:00.605Z] https://api.example.com/search?cache=true - 200 - 45.32 ms [cacheKey not found in cache: user:123:profile]
+✓ [2025-12-10T11:40:00.605Z] https://api.example.com/search?cache=true - 200 - 45.32 ms [cacheKey: user:123:profile]
 ✓ [2025-12-10T11:40:00.705Z] https://api.example.com/search?cache=true - 200 - 12.18 ms
 ```
 

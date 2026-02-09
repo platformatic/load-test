@@ -93,8 +93,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
       if (errorMatch) {
         metadataError = errorMatch[1]
       }
-      // Extract cacheKey when cache is enabled and response is not cached
-      if (cache && !cached) {
+      if (cache) {
         const cacheKeyMatch = text.match(/"cacheKey"\s*:\s*"([^"]*)"/)
         if (cacheKeyMatch) {
           cacheKey = cacheKeyMatch[1]
@@ -124,7 +123,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
       logMsg += ` [metadata.error: ${metadataError}]`
     }
     if (cacheKey) {
-      logMsg += ` [cacheKey not found in cache: ${cacheKey}]`
+      logMsg += ` [cacheKey: ${cacheKey}]`
     }
     console.log(logMsg)
     return { success: true, url, statusCode, latency: Number(latencyMs), fallback, cached, cacheKey, metadataError }

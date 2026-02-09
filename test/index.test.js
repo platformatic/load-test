@@ -611,7 +611,7 @@ test('executeRequest - logs cacheKey when cache is true and response is not cach
   assert.strictEqual(result.cacheKey, 'user:123:profile')
 })
 
-test('executeRequest - does not extract cacheKey when response is cached', async (t) => {
+test('executeRequest - extracts cacheKey when response is cached', async (t) => {
   const app = fastify()
 
   app.get('/', async (request, reply) => {
@@ -632,7 +632,7 @@ test('executeRequest - does not extract cacheKey when response is cached', async
 
   assert.strictEqual(result.success, true)
   assert.strictEqual(result.cached, true)
-  assert.strictEqual(result.cacheKey, null)
+  assert.strictEqual(result.cacheKey, 'user:123:profile')
 })
 
 test('executeRequest - cacheKey is null when not present and response is not cached', async (t) => {
