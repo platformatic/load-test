@@ -33,7 +33,7 @@ node cli.js <csv-file> [options]
 - `--cache` - Add `cache=true` to the querystring of all URLs. The opposite of `--no-cache`, useful for explicitly enabling caching on the target server.
 - `--skip-header` - Skip the first line of the CSV file. Useful when your CSV file has a header row.
 - `--no-verify` - Disable HTTPS certificate verification. Useful for testing against servers with self-signed certificates or in development environments.
-- `--count-fallback` - Count responses that contain `"fallback": true` in their JSON body. Uses fast regex matching instead of full JSON parsing for minimal overhead. Displays fallback count and percentage in the final statistics. Also extracts and logs `metadata.error` if present in the response.
+- `--count-fallback` - Count responses that contain `"fallback": true` and/or `"cached": true` in their JSON body. Uses fast regex matching instead of full JSON parsing for minimal overhead. Displays fallback and cached counts with percentages in the final statistics. Also extracts and logs `metadata.error` if present in the response.
 
 ### Examples
 
@@ -182,6 +182,7 @@ Total requests: 20000
 Successful: 19985
 Errors: 15
 Fallback: 127 (0.6%)
+Cached: 1542 (7.7%)
 Min: 12.34 ms
 Max: 567.89 ms
 Mean: 45.67 ms

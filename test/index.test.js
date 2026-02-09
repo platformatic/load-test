@@ -539,6 +539,54 @@ test('loadTest - counts fallback responses with countFallback flag', async (t) =
   await rm(tmpDir, { recursive: true })
 })
 
+test('executeRequest - extracts cached from metadata when countFallback is enabled', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return {
+      metadata: {
+        fallback: false,
+        cached: true,
+        requestId: 'req-123'
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+  const result = await executeRequest(url, 60000, null, null, true)
+
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.cached, true)
+  assert.strictEqual(result.fallback, false)
+})
+
+test('executeRequest - cached is false when metadata.cached is not true', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return {
+      metadata: {
+        fallback: true,
+        requestId: 'req-456'
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+  const result = await executeRequest(url, 60000, null, null, true)
+
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.cached, false)
+})
+
 test('executeRequest - extracts metadata.error when countFallback is enabled', async (t) => {
   const app = fastify()
 

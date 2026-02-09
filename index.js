@@ -69,6 +69,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
   const startTime = process.hrtime.bigint()
   let latencyMs
   let fallback = null
+  let cached = null
   let metadataError = null
   try {
     const options = {
@@ -83,6 +84,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     if (countFallback) {
       const text = await body.text()
       fallback = /"fallback"\s*:\s*true/.test(text)
+      cached = /"cached"\s*:\s*true/.test(text)
       // Extract metadata.error if present
       const errorMatch = text.match(/"metadata"\s*:\s*\{[^}]*"error"\s*:\s*"([^"]*)"/)
       if (errorMatch) {
@@ -112,7 +114,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
       logMsg += ` [metadata.error: ${metadataError}]`
     }
     console.log(logMsg)
-    return { success: true, url, statusCode, latency: Number(latencyMs), fallback, metadataError }
+    return { success: true, url, statusCode, latency: Number(latencyMs), fallback, cached, metadataError }
   } catch (err) {
     const endTime = process.hrtime.bigint()
     latencyMs = (endTime - startTime) / BigInt(1_000_000)
@@ -130,7 +132,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     if (err.cause) {
       console.error(`  Cause: ${err.cause.message || err.cause}`)
     }
-    return { success: false, url, error: err, latency: Number(latencyMs), fallback, metadataError }
+    return { success: false, url, error: err, latency: Number(latencyMs), fallback, cached, metadataError }
   }
 }
 
@@ -192,6 +194,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   let resolveCompletion
   let errorCount = 0
   let fallbackCount = 0
+  let cachedCount = 0
 
   const completionPromise = new Promise((resolve) => {
     resolveCompletion = resolve
@@ -215,6 +218,9 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
       }
       if (result.fallback === true) {
         fallbackCount++
+      }
+      if (result.cached === true) {
+        cachedCount++
       }
 
       if (resetConnections > 0) {
@@ -303,6 +309,8 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (countFallback) {
     const fallbackPct = totalRequests > 0 ? ((fallbackCount / totalRequests) * 100).toFixed(1) : '0.0'
     console.log(`Fallback: ${fallbackCount} (${fallbackPct}%)`)
+    const cachedPct = totalRequests > 0 ? ((cachedCount / totalRequests) * 100).toFixed(1) : '0.0'
+    console.log(`Cached: ${cachedCount} (${cachedPct}%)`)
   }
   console.log(`Min: ${(histogram.min).toFixed(2)} ms`)
   console.log(`Max: ${(histogram.max).toFixed(2)} ms`)
