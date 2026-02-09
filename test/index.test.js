@@ -364,6 +364,40 @@ test('loadTest - adds cache=false to querystring with --no-cache', async (t) => 
   await rm(tmpDir, { recursive: true })
 })
 
+test('loadTest - adds query=true to querystring with --query', async (t) => {
+  const app = fastify()
+  const requestedUrls = []
+
+  app.get('/api/test', async (request, reply) => {
+    requestedUrls.push(request.url)
+    return { ok: true }
+  })
+
+  app.get('/api/data', async (request, reply) => {
+    requestedUrls.push(request.url)
+    return { ok: true }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const localPort = app.server.address().port
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-query.csv')
+
+  const now = Date.now()
+  await writeFile(csvPath, `${now},http://localhost:${localPort}/api/test\n${now},http://localhost:${localPort}/api/data?foo=bar`)
+
+  await loadTest(csvPath, 60000, 1, null, false, false, false, 0, 0, false, true)
+
+  assert.strictEqual(requestedUrls.length, 2)
+  assert.strictEqual(requestedUrls[0], '/api/test?query=true')
+  assert.strictEqual(requestedUrls[1], '/api/data?foo=bar&query=true')
+
+  await rm(tmpDir, { recursive: true })
+})
+
 test('loadTest - skips header line with skipHeader flag', async (t) => {
   const app = fastify()
 

@@ -30,6 +30,7 @@ node cli.js <csv-file> [options]
 - `-r, --reset-connections <n>` - Reset connections every N requests (similar to autocannon's `-D` flag). Forces connection closure and recreation to simulate realistic client behavior and test connection establishment overhead. Useful for testing servers under more realistic conditions.
 - `-l, --limit <n>` - Execute only the first N requests from the CSV file. Useful for quick smoke tests or debugging.
 - `--no-cache` - Add `cache=false` to the querystring of all URLs to bypass caching. Useful for testing without cache influence.
+- `--query` - Add `query=true` to the querystring of all URLs. Useful for enabling query mode on the target server.
 - `--skip-header` - Skip the first line of the CSV file. Useful when your CSV file has a header row.
 - `--no-verify` - Disable HTTPS certificate verification. Useful for testing against servers with self-signed certificates or in development environments.
 - `--count-fallback` - Count responses that contain `"fallback": true` in their JSON body. Uses fast regex matching instead of full JSON parsing for minimal overhead. Displays fallback count and percentage in the final statistics. Also extracts and logs `metadata.error` if present in the response.
@@ -75,11 +76,14 @@ load example.csv -r 100
 load example.csv --limit 100
 load example.csv -l 100
 
+# Add query=true to all URLs
+load example.csv --query
+
 # Count fallback responses in statistics
 load example.csv --count-fallback
 
 # Combine with other options
-load example.csv --no-cache --host localhost:3000 --accelerator 10 --no-verify --reset-connections 100
+load example.csv --no-cache --query --host localhost:3000 --accelerator 10 --no-verify --reset-connections 100
 
 # Test parallel execution
 load example-parallel.csv
