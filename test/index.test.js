@@ -5,6 +5,7 @@ const assert = require('node:assert')
 const { writeFile, mkdir, rm } = require('fs/promises')
 const { setTimeout } = require('timers/promises')
 const { join } = require('path')
+const { execFile } = require('node:child_process')
 const { parseCSV, executeRequest, loadTest } = require('../index.js')
 const fastify = require('fastify')
 
@@ -364,7 +365,7 @@ test('loadTest - adds cache=false to querystring with --no-cache', async (t) => 
   await rm(tmpDir, { recursive: true })
 })
 
-test('loadTest - adds query=true to querystring with --query', async (t) => {
+test('loadTest - adds cache=true to querystring with --cache', async (t) => {
   const app = fastify()
   const requestedUrls = []
 
@@ -384,7 +385,7 @@ test('loadTest - adds query=true to querystring with --query', async (t) => {
   const localPort = app.server.address().port
   const tmpDir = join(__dirname, 'tmp')
   await mkdir(tmpDir, { recursive: true })
-  const csvPath = join(tmpDir, 'test-query.csv')
+  const csvPath = join(tmpDir, 'test-cache.csv')
 
   const now = Date.now()
   await writeFile(csvPath, `${now},http://localhost:${localPort}/api/test\n${now},http://localhost:${localPort}/api/data?foo=bar`)
@@ -392,8 +393,8 @@ test('loadTest - adds query=true to querystring with --query', async (t) => {
   await loadTest(csvPath, 60000, 1, null, false, false, false, 0, 0, false, true)
 
   assert.strictEqual(requestedUrls.length, 2)
-  assert.strictEqual(requestedUrls[0], '/api/test?query=true')
-  assert.strictEqual(requestedUrls[1], '/api/data?foo=bar&query=true')
+  assert.strictEqual(requestedUrls[0], '/api/test?cache=true')
+  assert.strictEqual(requestedUrls[1], '/api/data?foo=bar&cache=true')
 
   await rm(tmpDir, { recursive: true })
 })
@@ -561,6 +562,19 @@ test('executeRequest - extracts metadata.error when countFallback is enabled', a
   assert.strictEqual(result.success, true)
   assert.strictEqual(result.fallback, false)
   assert.strictEqual(result.metadataError, 'Something went wrong')
+})
+
+test('cli - errors when --no-cache and --cache are both set', async (t) => {
+  const cliPath = join(__dirname, '..', 'cli.js')
+  const result = await new Promise((resolve) => {
+    execFile(process.execPath, [cliPath, 'dummy.csv', '--no-cache', '--cache'], (error, stdout, stderr) => {
+      resolve({ error, stdout, stderr })
+    })
+  })
+
+  assert.ok(result.error)
+  assert.strictEqual(result.error.code, 1)
+  assert.ok(result.stderr.includes('--no-cache and --cache cannot be used together'))
 })
 
 test('executeRequest - metadataError is null when not present', async (t) => {

@@ -24,7 +24,7 @@ const { values, positionals } = parseArgs({
       type: 'boolean',
       default: false
     },
-    query: {
+    cache: {
       type: 'boolean',
       default: false
     },
@@ -58,7 +58,7 @@ const timeout = parseInt(values.timeout, 10)
 const accelerator = parseFloat(values.accelerator)
 const hostRewrite = values.host
 const noCache = values['no-cache']
-const query = values.query
+const cache = values.cache
 const skipHeader = values['skip-header']
 const noVerify = values['no-verify']
 const resetConnections = values['reset-connections'] ? parseInt(values['reset-connections'], 10) : 0
@@ -77,7 +77,7 @@ if (!csvPath) {
   console.error('  -r, --reset-connections <n>  Reset connections every N requests (like autocannon -D)')
   console.error('  -l, --limit <n>              Execute only the first N requests from the CSV')
   console.error('  --no-cache                   Add cache=false to the querystring of all URLs')
-  console.error('  --query                      Add query=true to the querystring of all URLs')
+  console.error('  --cache                      Add cache=true to the querystring of all URLs')
   console.error('  --skip-header                Skip the first line of the CSV file (useful for headers)')
   console.error('  --no-verify                  Disable HTTPS certificate verification (useful for self-signed certs)')
   console.error('  --count-fallback             Count responses with "fallback": true in metadata')
@@ -125,7 +125,12 @@ if (limit && (isNaN(limit) || limit <= 0)) {
   process.exit(1)
 }
 
-loadTest(csvPath, timeout, accelerator, hostRewrite, noCache, skipHeader, noVerify, resetConnections, limit, countFallback, query).catch((err) => {
+if (noCache && cache) {
+  console.error('Error: --no-cache and --cache cannot be used together')
+  process.exit(1)
+}
+
+loadTest(csvPath, timeout, accelerator, hostRewrite, noCache, skipHeader, noVerify, resetConnections, limit, countFallback, cache).catch((err) => {
   console.error('Fatal error:', err.message)
   process.exit(1)
 })

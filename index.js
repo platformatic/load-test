@@ -134,7 +134,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0, limit = 0, countFallback = false, query = false) {
+async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0, limit = 0, countFallback = false, cache = false) {
   console.log('Starting load test...')
   if (accelerator !== 1) {
     console.log(`Time acceleration: ${accelerator}x`)
@@ -145,8 +145,8 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (noCache) {
     console.log('Cache busting: enabled (cache=false)')
   }
-  if (query) {
-    console.log('Query param: enabled (query=true)')
+  if (cache) {
+    console.log('Cache: enabled (cache=true)')
   }
   if (skipHeader) {
     console.log('Skipping first line: enabled')
@@ -163,7 +163,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (countFallback) {
     console.log('Count fallback: enabled')
   }
-  if (accelerator !== 1 || hostRewrite || noCache || query || skipHeader || noVerify || resetConnections > 0 || limit > 0 || countFallback) {
+  if (accelerator !== 1 || hostRewrite || noCache || cache || skipHeader || noVerify || resetConnections > 0 || limit > 0 || countFallback) {
     console.log('')
   }
 
@@ -258,7 +258,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     }
 
     let url = req.url
-    if (hostRewrite || noCache || query) {
+    if (hostRewrite || noCache || cache) {
       const urlObj = new URL(url)
       if (hostRewrite) {
         urlObj.host = hostRewrite
@@ -266,8 +266,8 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
       if (noCache) {
         urlObj.searchParams.set('cache', 'false')
       }
-      if (query) {
-        urlObj.searchParams.set('query', 'true')
+      if (cache) {
+        urlObj.searchParams.set('cache', 'true')
       }
       url = urlObj.toString()
     }
