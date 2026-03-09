@@ -503,6 +503,44 @@ test('loadTest - limits requests with limit flag', async (t) => {
   await rm(tmpDir, { recursive: true })
 })
 
+test('loadTest - limits requests by hours', async (t) => {
+  const app = fastify()
+  let requestCount = 0
+
+  app.get('/', async (request, reply) => {
+    requestCount++
+    return 'ok'
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-hours.csv')
+
+  const now = Date.now()
+  const oneHour = 3_600_000
+  // 5 requests: at 0h, 0.5h, 1h, 1.5h, 2.5h
+  await writeFile(csvPath, [
+    `${now},${url}`,
+    `${now + oneHour * 0.5},${url}`,
+    `${now + oneHour},${url}`,
+    `${now + oneHour * 1.5},${url}`,
+    `${now + oneHour * 2.5},${url}`
+  ].join('\n'))
+
+  // Limit to first 2 hours, with high accelerator to run fast
+  // Should include requests at 0h, 0.5h, 1h, 1.5h (4 requests), skip 2.5h
+  await loadTest(csvPath, 60000, 100000, null, false, false, false, 0, 0, false, false, 2)
+
+  assert.strictEqual(requestCount, 4)
+
+  await rm(tmpDir, { recursive: true })
+})
+
 test('loadTest - counts fallback responses with countFallback flag', async (t) => {
   const app = fastify()
   let requestCount = 0
