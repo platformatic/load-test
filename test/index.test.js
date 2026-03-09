@@ -5,6 +5,7 @@ const assert = require('node:assert')
 const { writeFile, mkdir, rm } = require('fs/promises')
 const { setTimeout } = require('timers/promises')
 const { join } = require('path')
+const { execFile } = require('node:child_process')
 const { parseCSV, executeRequest, loadTest } = require('../index.js')
 const fastify = require('fastify')
 
@@ -364,6 +365,40 @@ test('loadTest - adds cache=false to querystring with --no-cache', async (t) => 
   await rm(tmpDir, { recursive: true })
 })
 
+test('loadTest - adds cache=true to querystring with --cache', async (t) => {
+  const app = fastify()
+  const requestedUrls = []
+
+  app.get('/api/test', async (request, reply) => {
+    requestedUrls.push(request.url)
+    return { ok: true }
+  })
+
+  app.get('/api/data', async (request, reply) => {
+    requestedUrls.push(request.url)
+    return { ok: true }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const localPort = app.server.address().port
+  const tmpDir = join(__dirname, 'tmp')
+  await mkdir(tmpDir, { recursive: true })
+  const csvPath = join(tmpDir, 'test-cache.csv')
+
+  const now = Date.now()
+  await writeFile(csvPath, `${now},http://localhost:${localPort}/api/test\n${now},http://localhost:${localPort}/api/data?foo=bar`)
+
+  await loadTest(csvPath, 60000, 1, null, false, false, false, 0, 0, false, true)
+
+  assert.strictEqual(requestedUrls.length, 2)
+  assert.strictEqual(requestedUrls[0], '/api/test?cache=true')
+  assert.strictEqual(requestedUrls[1], '/api/data?foo=bar&cache=true')
+
+  await rm(tmpDir, { recursive: true })
+})
+
 test('loadTest - skips header line with skipHeader flag', async (t) => {
   const app = fastify()
 
@@ -504,6 +539,125 @@ test('loadTest - counts fallback responses with countFallback flag', async (t) =
   await rm(tmpDir, { recursive: true })
 })
 
+test('executeRequest - extracts cached from metadata when countFallback is enabled', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return {
+      metadata: {
+        fallback: false,
+        cached: true,
+        requestId: 'req-123'
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+  const result = await executeRequest(url, 60000, null, null, true)
+
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.cached, true)
+  assert.strictEqual(result.fallback, false)
+})
+
+test('executeRequest - cached is false when metadata.cached is not true', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return {
+      metadata: {
+        fallback: true,
+        requestId: 'req-456'
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+  const result = await executeRequest(url, 60000, null, null, true)
+
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.cached, false)
+})
+
+test('executeRequest - logs cacheKey when cache is true and response is not cached', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return {
+      metadata: {
+        cached: false,
+        cacheKey: 'user:123:profile'
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+  const result = await executeRequest(url, 60000, null, null, false, true)
+
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.cached, false)
+  assert.strictEqual(result.cacheKey, 'user:123:profile')
+})
+
+test('executeRequest - extracts cacheKey when response is cached', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return {
+      metadata: {
+        cached: true,
+        cacheKey: 'user:123:profile'
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+  const result = await executeRequest(url, 60000, null, null, false, true)
+
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.cached, true)
+  assert.strictEqual(result.cacheKey, 'user:123:profile')
+})
+
+test('executeRequest - cacheKey is null when not present and response is not cached', async (t) => {
+  const app = fastify()
+
+  app.get('/', async (request, reply) => {
+    return {
+      metadata: {
+        cached: false
+      },
+      data: 'test'
+    }
+  })
+
+  await app.listen({ port: 0 })
+  t.after(() => app.close())
+
+  const url = `http://localhost:${app.server.address().port}`
+  const result = await executeRequest(url, 60000, null, null, false, true)
+
+  assert.strictEqual(result.success, true)
+  assert.strictEqual(result.cached, false)
+  assert.strictEqual(result.cacheKey, null)
+})
+
 test('executeRequest - extracts metadata.error when countFallback is enabled', async (t) => {
   const app = fastify()
 
@@ -527,6 +681,19 @@ test('executeRequest - extracts metadata.error when countFallback is enabled', a
   assert.strictEqual(result.success, true)
   assert.strictEqual(result.fallback, false)
   assert.strictEqual(result.metadataError, 'Something went wrong')
+})
+
+test('cli - errors when --no-cache and --cache are both set', async (t) => {
+  const cliPath = join(__dirname, '..', 'cli.js')
+  const result = await new Promise((resolve) => {
+    execFile(process.execPath, [cliPath, 'dummy.csv', '--no-cache', '--cache'], (error, stdout, stderr) => {
+      resolve({ error, stdout, stderr })
+    })
+  })
+
+  assert.ok(result.error)
+  assert.strictEqual(result.error.code, 1)
+  assert.ok(result.stderr.includes('--no-cache and --cache cannot be used together'))
 })
 
 test('executeRequest - metadataError is null when not present', async (t) => {

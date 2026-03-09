@@ -65,10 +65,12 @@ function parseCSV (filePath, skipHeader = false) {
   return parseTransform
 }
 
-async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatcher = null, countFallback = false) {
+async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatcher = null, countFallback = false, cache = false) {
   const startTime = process.hrtime.bigint()
   let latencyMs
   let fallback = null
+  let cached = null
+  let cacheKey = null
   let metadataError = null
   try {
     const options = {
@@ -80,13 +82,22 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     }
     const { statusCode, body } = await request(url, options)
 
-    if (countFallback) {
+    if (countFallback || cache) {
       const text = await body.text()
-      fallback = /"fallback"\s*:\s*true/.test(text)
+      if (countFallback) {
+        fallback = /"fallback"\s*:\s*true/.test(text)
+      }
+      cached = /"cached"\s*:\s*true/.test(text)
       // Extract metadata.error if present
       const errorMatch = text.match(/"metadata"\s*:\s*\{[^}]*"error"\s*:\s*"([^"]*)"/)
       if (errorMatch) {
         metadataError = errorMatch[1]
+      }
+      if (cache) {
+        const cacheKeyMatch = text.match(/"cacheKey"\s*:\s*"([^"]*)"/)
+        if (cacheKeyMatch) {
+          cacheKey = cacheKeyMatch[1]
+        }
       }
     } else {
       await body.dump() // Consume the response body to simulate a real client
@@ -111,8 +122,11 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     if (metadataError) {
       logMsg += ` [metadata.error: ${metadataError}]`
     }
+    if (cacheKey) {
+      logMsg += ` [cacheKey: ${cacheKey}]`
+    }
     console.log(logMsg)
-    return { success: true, url, statusCode, latency: Number(latencyMs), fallback, metadataError }
+    return { success: true, url, statusCode, latency: Number(latencyMs), fallback, cached, cacheKey, metadataError }
   } catch (err) {
     const endTime = process.hrtime.bigint()
     latencyMs = (endTime - startTime) / BigInt(1_000_000)
@@ -130,11 +144,11 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
     if (err.cause) {
       console.error(`  Cause: ${err.cause.message || err.cause}`)
     }
-    return { success: false, url, error: err, latency: Number(latencyMs), fallback, metadataError }
+    return { success: false, url, error: err, latency: Number(latencyMs), fallback, cached, cacheKey, metadataError }
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0, limit = 0, countFallback = false) {
+async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0, limit = 0, countFallback = false, cache = false) {
   console.log('Starting load test...')
   if (accelerator !== 1) {
     console.log(`Time acceleration: ${accelerator}x`)
@@ -144,6 +158,9 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   }
   if (noCache) {
     console.log('Cache busting: enabled (cache=false)')
+  }
+  if (cache) {
+    console.log('Cache: enabled (cache=true)')
   }
   if (skipHeader) {
     console.log('Skipping first line: enabled')
@@ -160,7 +177,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (countFallback) {
     console.log('Count fallback: enabled')
   }
-  if (accelerator !== 1 || hostRewrite || noCache || skipHeader || noVerify || resetConnections > 0 || limit > 0 || countFallback) {
+  if (accelerator !== 1 || hostRewrite || noCache || cache || skipHeader || noVerify || resetConnections > 0 || limit > 0 || countFallback) {
     console.log('')
   }
 
@@ -189,6 +206,7 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   let resolveCompletion
   let errorCount = 0
   let fallbackCount = 0
+  let cachedCount = 0
 
   const completionPromise = new Promise((resolve) => {
     resolveCompletion = resolve
@@ -206,12 +224,15 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
 
     inFlightRequests++
     try {
-      const result = await executeRequest(url, timeoutMs, histogram, requestDispatcher, countFallback)
+      const result = await executeRequest(url, timeoutMs, histogram, requestDispatcher, countFallback, cache)
       if (!result.success) {
         errorCount++
       }
       if (result.fallback === true) {
         fallbackCount++
+      }
+      if (result.cached === true) {
+        cachedCount++
       }
 
       if (resetConnections > 0) {
@@ -255,13 +276,16 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     }
 
     let url = req.url
-    if (hostRewrite || noCache) {
+    if (hostRewrite || noCache || cache) {
       const urlObj = new URL(url)
       if (hostRewrite) {
         urlObj.host = hostRewrite
       }
       if (noCache) {
         urlObj.searchParams.set('cache', 'false')
+      }
+      if (cache) {
+        urlObj.searchParams.set('cache', 'true')
       }
       url = urlObj.toString()
     }
@@ -297,6 +321,8 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (countFallback) {
     const fallbackPct = totalRequests > 0 ? ((fallbackCount / totalRequests) * 100).toFixed(1) : '0.0'
     console.log(`Fallback: ${fallbackCount} (${fallbackPct}%)`)
+    const cachedPct = totalRequests > 0 ? ((cachedCount / totalRequests) * 100).toFixed(1) : '0.0'
+    console.log(`Cached: ${cachedCount} (${cachedPct}%)`)
   }
   console.log(`Min: ${(histogram.min).toFixed(2)} ms`)
   console.log(`Max: ${(histogram.max).toFixed(2)} ms`)
