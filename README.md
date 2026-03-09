@@ -33,6 +33,7 @@ node cli.js <csv-file> [options]
 - `--cache` - Add `cache=true` to the querystring of all URLs. The opposite of `--no-cache`, useful for explicitly enabling caching on the target server. When a response is not cached (`metadata.cached` is not `true`), logs the `metadata.cacheKey` if present.
 - `--skip-header` - Skip the first line of the CSV file. Useful when your CSV file has a header row.
 - `--no-verify` - Disable HTTPS certificate verification. Useful for testing against servers with self-signed certificates or in development environments.
+- `--hours <n>` - Execute only requests within the first N hours of the CSV timeline. Calculated from the first request's timestamp. Supports decimals (e.g., `--hours 1.5` for 90 minutes). Useful for running a subset of a long recording.
 - `--count-fallback` - Count responses that contain `"fallback": true` and/or `"cached": true` in their JSON body. Uses fast regex matching instead of full JSON parsing for minimal overhead. Displays fallback and cached counts with percentages in the final statistics. Also extracts and logs `metadata.error` if present in the response.
 
 ### Examples
@@ -78,6 +79,9 @@ load example.csv -l 100
 
 # Add cache=true to all URLs (opposite of --no-cache)
 load example.csv --cache
+
+# Execute only the first 2 hours of requests
+load example.csv --hours 2
 
 # Count fallback responses in statistics
 load example.csv --count-fallback

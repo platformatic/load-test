@@ -47,6 +47,9 @@ const { values, positionals } = parseArgs({
     'count-fallback': {
       type: 'boolean',
       default: false
+    },
+    hours: {
+      type: 'string'
     }
   },
   allowPositionals: true,
@@ -64,6 +67,7 @@ const noVerify = values['no-verify']
 const resetConnections = values['reset-connections'] ? parseInt(values['reset-connections'], 10) : 0
 const limit = values.limit ? parseInt(values.limit, 10) : 0
 const countFallback = values['count-fallback']
+const hours = values.hours ? parseFloat(values.hours) : 0
 
 if (!csvPath) {
   console.error('Error: CSV file path is required')
@@ -81,6 +85,7 @@ if (!csvPath) {
   console.error('  --skip-header                Skip the first line of the CSV file (useful for headers)')
   console.error('  --no-verify                  Disable HTTPS certificate verification (useful for self-signed certs)')
   console.error('  --count-fallback             Count responses with "fallback": true in metadata')
+  console.error('  --hours <n>                  Execute only requests within the first N hours of the CSV')
   console.error('')
   console.error('Example:')
   console.error('  load requests.csv')
@@ -125,12 +130,17 @@ if (limit && (isNaN(limit) || limit <= 0)) {
   process.exit(1)
 }
 
+if (hours && (isNaN(hours) || hours <= 0)) {
+  console.error('Error: hours must be a positive number')
+  process.exit(1)
+}
+
 if (noCache && cache) {
   console.error('Error: --no-cache and --cache cannot be used together')
   process.exit(1)
 }
 
-loadTest(csvPath, timeout, accelerator, hostRewrite, noCache, skipHeader, noVerify, resetConnections, limit, countFallback, cache).catch((err) => {
+loadTest(csvPath, timeout, accelerator, hostRewrite, noCache, skipHeader, noVerify, resetConnections, limit, countFallback, cache, hours).catch((err) => {
   console.error('Fatal error:', err.message)
   process.exit(1)
 })

@@ -148,7 +148,7 @@ async function executeRequest (url, timeoutMs = 60000, histogram = null, dispatc
   }
 }
 
-async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0, limit = 0, countFallback = false, cache = false) {
+async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrite = null, noCache = false, skipHeader = false, noVerify = false, resetConnections = 0, limit = 0, countFallback = false, cache = false, hours = 0) {
   console.log('Starting load test...')
   if (accelerator !== 1) {
     console.log(`Time acceleration: ${accelerator}x`)
@@ -177,7 +177,10 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
   if (countFallback) {
     console.log('Count fallback: enabled')
   }
-  if (accelerator !== 1 || hostRewrite || noCache || cache || skipHeader || noVerify || resetConnections > 0 || limit > 0 || countFallback) {
+  if (hours > 0) {
+    console.log(`Hours: first ${hours}h`)
+  }
+  if (accelerator !== 1 || hostRewrite || noCache || cache || skipHeader || noVerify || resetConnections > 0 || limit > 0 || countFallback || hours > 0) {
     console.log('')
   }
 
@@ -266,6 +269,10 @@ async function loadTest (csvPath, timeoutMs = 60000, accelerator = 1, hostRewrit
     }
 
     const relativeTime = req.time - firstRequestTime
+
+    if (hours > 0 && relativeTime > hours * 3_600_000) {
+      break
+    }
     const acceleratedTime = Math.floor(relativeTime / accelerator)
     const targetTime = startTime + acceleratedTime
     const now = Date.now()
